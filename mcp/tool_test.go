@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
 )
@@ -82,7 +83,7 @@ func TestMakeTool(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		if diff := cmp.Diff(test.want, test.tool.Definition.InputSchema); diff != "" {
+		if diff := cmp.Diff(test.want, test.tool.Definition.InputSchema, cmpopts.IgnoreUnexported(jsonschema.Schema{})); diff != "" {
 			t.Errorf("MakeTool(%v) mismatch (-want +got):\n%s", test.tool.Definition.Name, diff)
 		}
 	}
