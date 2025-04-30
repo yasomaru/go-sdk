@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
 )
 
 const runAsServer = "_MCP_RUN_AS_SERVER"
@@ -57,7 +58,9 @@ func TestCmdTransport(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	want := []mcp.Content{mcp.TextContent{Text: "Hi user"}}
+	want := &protocol.CallToolResult{
+		Content: []protocol.Content{{Type: "text", Text: "Hi user"}},
+	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("greet returned unexpected content (-want +got):\n%s", diff)
 	}
