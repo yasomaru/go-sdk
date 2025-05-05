@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
 	"github.com/modelcontextprotocol/go-sdk/internal/util"
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
 // A PromptHandler handles a call to prompts/get.

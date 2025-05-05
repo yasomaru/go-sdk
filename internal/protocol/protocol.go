@@ -9,7 +9,7 @@ package protocol
 import (
 	"encoding/json"
 
-	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
 // Optional annotations for the client. The client can use annotations to inform

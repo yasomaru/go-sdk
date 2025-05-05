@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
 // testToolHandler is used for type inference in TestMakeTool.

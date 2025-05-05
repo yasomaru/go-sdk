@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
 func forType[T any]() *jsonschema.Schema {

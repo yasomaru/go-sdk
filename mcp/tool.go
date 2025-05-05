@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/modelcontextprotocol/go-sdk/internal/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
 	"github.com/modelcontextprotocol/go-sdk/internal/util"
+	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
 // A ToolHandler handles a call to tools/call.
