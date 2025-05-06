@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 // testPromptHandler is used for type inference in TestMakePrompt.

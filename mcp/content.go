@@ -7,7 +7,7 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 // Content is the union of supported content types: [TextContent],

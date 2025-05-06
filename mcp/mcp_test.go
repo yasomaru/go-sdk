@@ -16,8 +16,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
 	"github.com/modelcontextprotocol/go-sdk/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 type hiParams struct {

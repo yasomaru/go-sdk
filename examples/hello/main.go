@@ -12,7 +12,7 @@ import (
 	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 var httpAddr = flag.String("http", "", "if set, use SSE HTTP at this address, instead of stdin/stdout")

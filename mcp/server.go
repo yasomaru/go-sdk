@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 // A Server is an instance of an MCP server.

@@ -15,7 +15,7 @@ import (
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 	"github.com/modelcontextprotocol/go-sdk/internal/xcontext"
 )
 

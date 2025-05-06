@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
-	"github.com/modelcontextprotocol/go-sdk/internal/protocol"
+	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 // A Client is an MCP client, which may be connected to an MCP server
