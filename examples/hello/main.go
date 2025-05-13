@@ -12,7 +12,6 @@ import (
 	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/modelcontextprotocol/go-sdk/mcp/protocol"
 )
 
 var httpAddr = flag.String("http", "", "if set, use SSE HTTP at this address, instead of stdin/stdout")
@@ -27,10 +26,10 @@ func SayHi(ctx context.Context, cc *mcp.ServerConnection, params *HiParams) ([]m
 	}, nil
 }
 
-func PromptHi(ctx context.Context, cc *mcp.ServerConnection, params *HiParams) (*protocol.GetPromptResult, error) {
-	return &protocol.GetPromptResult{
+func PromptHi(ctx context.Context, cc *mcp.ServerConnection, params *HiParams) (*mcp.GetPromptResult, error) {
+	return &mcp.GetPromptResult{
 		Description: "Code review prompt",
-		Messages: []protocol.PromptMessage{
+		Messages: []mcp.PromptMessage{
 			{Role: "user", Content: mcp.TextContent{Text: "Say hi to " + params.Name}.ToWire()},
 		},
 	}, nil
