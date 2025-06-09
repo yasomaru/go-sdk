@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
+	"github.com/modelcontextprotocol/go-sdk/internal/util"
 )
 
 // A ServerResource associates a Resource with its handler.
@@ -122,11 +123,7 @@ func fileRoots(rawRoots []*Root) ([]string, error) {
 
 // fileRoot returns the absolute path for Root.
 func fileRoot(root *Root) (_ string, err error) {
-	defer func() {
-		if err != nil {
-			err = fmt.Errorf("root %q: %w", root.URI, err)
-		}
-	}()
+	defer util.Wrapf(&err, "root %q", root.URI)
 
 	// Convert to absolute file path.
 	rurl, err := url.Parse(root.URI)
