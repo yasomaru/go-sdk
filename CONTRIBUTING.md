@@ -1,7 +1,7 @@
 # Contributing to the Go MCP SDK
 
 Thank you for your interest in contributing! The Go SDK needs active
-contributions to keep up with changes in the MCP spec, fix bugs, and accomodate
+contributions to keep up with changes in the MCP spec, fix bugs, and accommodate
 new and emerging use-cases. We welcome all forms of contribution, from filing
 and reviewing issues, to contributing fixes, to proposing and implementing new
 features.
@@ -53,14 +53,15 @@ When reporting a bug, make sure to answer these five questions:
 ### Proposals
 
 A proposal is an issue that proposes a new API for the SDK, or a change to the
-signature or behavior of an existing API. Proposals are be labeled with the
+signature or behavior of an existing API. Proposals should be labeled with the
 'Proposal' label, and require an explicit approval from a maintainer before
 being accepted (indicated by the 'Proposal-Accepted' label). Proposals must
 remain open for at least a week to allow discussion before being accepted or
 declined by a maintainer.
 
 Proposals that are straightforward and uncontroversial may be approved based on
-GitHub discussion. However, proposals that are deemed to be sufficiently
+discussion on the issue tracker or in a GitHub Discussion.
+However, proposals that are deemed to be sufficiently
 unclear or complicated may be deferred to a regular steering meeting (see
 'Governance' below).
 
@@ -113,7 +114,7 @@ the future: see 'Ongoing Evaluation' below.
 
 On a regular basis, the maintainers will host a virtual steering meeting to
 discuss outstanding proposals and other changes to the SDK. These meetings and
-their agendas will be announced in advance, and open to all to join. The
+their agendas will be announced in advance, and open to all. The
 meetings will be recorded, and recordings and meeting notes will be made
 available afterward. (TODO: decide on a mechanism for tracking these
 meetings--likely a GitHub issue.)
@@ -126,19 +127,19 @@ will at least initially occur on a more frequent basis.
 
 Discord (either the public or private Anthropic discord servers) should only be
 used for logistical coordination or answering questions. For transparency and
-durability, design discussion and decisions should occur in GitHub issues or
-public steering meetings.
+durability, design discussion and decisions should occur in GitHub issues,
+GitHub discussions, or public steering meetings.
 
 ### Antitrust considerations
 
 It is important that the SDK avoids bias toward specific integration paths or
 providers. The antitrust policy below details precise terms that should be
-avoided to ensure that the evolution and governance of the SDK remain
+adhered to in order to ensure that the evolution and governance of the SDK remain
 procompetitive.
 
 A note to readers: this policy was drafted in consultation with counsel, and so
 uses terms like 'Steering Committee', which may be confusing in the context of
-other 'steering committees' for model context protocol. In the context here,
+other 'steering committees' for the Model Context Protocol. In the context here,
 'Steering Committee' means the set of Approvers, who are able to approve pull
 requests and/or make administrative changes to the project.
 
