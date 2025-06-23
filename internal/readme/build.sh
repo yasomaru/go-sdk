@@ -1,9 +1,9 @@
 #!/bin/sh
 
 # Build README.md from the files in this directory.
-# Must be invoked from the internal/cmp directory.
+# Must be invoked from the mcp directory.
 
-cd internal/readme
+cd ../internal/readme
 
 outfile=../../README.md
 
