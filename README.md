@@ -12,14 +12,7 @@ development kit (SDK) for the Model Context Protocol (MCP).
 **WARNING**: The SDK is currently unstable and subject to breaking changes.
 Please test it out and file bug reports or API proposals. The [TODO](#todo)
 section below outlines outstanding release blockers. We aim to release a stable
-version of the SDK in mid July, 2025.
-
-	1. [Package documentation](#package-documentation)
-	1. [Example](#example)
-	1. [TODO](#todo)
-	1. [Design](#design)
-	1. [Acknowledgements](#acknowledgements)
-	1. [License](#license)
+version of the SDK in August, 2025.
 
 ## Package documentation
 
