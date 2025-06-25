@@ -17,7 +17,6 @@ response with its latest supported version.
 	"jsonrpc": "2.0",
 	"id": 1,
 	"result": {
-		"_meta": {},
 		"capabilities": {
 			"completions": {},
 			"logging": {},

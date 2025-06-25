@@ -20,7 +20,9 @@ type AddParams struct {
 
 func Add(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[AddParams]) (*mcp.CallToolResultFor[any], error) {
 	return &mcp.CallToolResultFor[any]{
-		Content: []*mcp.ContentBlock{mcp.NewTextContent(fmt.Sprintf("%d", params.Arguments.X+params.Arguments.Y))},
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("%d", params.Arguments.X+params.Arguments.Y)},
+		},
 	}, nil
 }
 
@@ -48,7 +50,7 @@ func ExampleSSEHandler() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(res.Content[0].Text)
+	fmt.Println(res.Content[0].(*mcp.TextContent).Text)
 
 	// Output: 3
 }

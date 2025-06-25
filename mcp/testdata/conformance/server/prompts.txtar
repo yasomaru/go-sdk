@@ -24,7 +24,6 @@ code_review
 	"jsonrpc": "2.0",
 	"id": 1,
 	"result": {
-		"_meta": {},
 		"capabilities": {
 			"completions": {},
 			"logging": {},
@@ -49,7 +48,6 @@ code_review
 	"jsonrpc": "2.0",
 	"id": 2,
 	"result": {
-		"_meta": {},
 		"tools": []
 	}
 }
@@ -57,7 +55,6 @@ code_review
 	"jsonrpc": "2.0",
 	"id": 4,
 	"result": {
-		"_meta": {},
 		"prompts": [
 			{
 				"arguments": [

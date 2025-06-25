@@ -6,6 +6,8 @@ package mcp_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,29 +16,72 @@ import (
 
 func TestContent(t *testing.T) {
 	tests := []struct {
-		in   *mcp.ContentBlock
+		in   mcp.Content
 		want string // json serialization
 	}{
-		{mcp.NewTextContent("hello"), `{"type":"text","text":"hello"}`},
 		{
-			mcp.NewImageContent([]byte("a1b2c3"), "image/png"),
+			&mcp.TextContent{Text: "hello"},
+			`{"type":"text","text":"hello"}`,
+		},
+		{
+			&mcp.TextContent{
+				Text:        "hello",
+				Meta:        mcp.Meta{"key": "value"},
+				Annotations: &mcp.Annotations{Priority: 1.0},
+			},
+			`{"type":"text","text":"hello","_meta":{"key":"value"},"annotations":{"priority":1}}`,
+		},
+		{
+			&mcp.ImageContent{
+				Data:     []byte("a1b2c3"),
+				MIMEType: "image/png",
+			},
 			`{"type":"image","mimeType":"image/png","data":"YTFiMmMz"}`,
 		},
 		{
-			mcp.NewAudioContent([]byte("a1b2c3"), "audio/wav"),
+			&mcp.ImageContent{
+				Data:        []byte("a1b2c3"),
+				MIMEType:    "image/png",
+				Meta:        mcp.Meta{"key": "value"},
+				Annotations: &mcp.Annotations{Priority: 1.0},
+			},
+			`{"type":"image","mimeType":"image/png","data":"YTFiMmMz","_meta":{"key":"value"},"annotations":{"priority":1}}`,
+		},
+		{
+			&mcp.AudioContent{
+				Data:     []byte("a1b2c3"),
+				MIMEType: "audio/wav",
+			},
 			`{"type":"audio","mimeType":"audio/wav","data":"YTFiMmMz"}`,
 		},
 		{
-			mcp.NewResourceContents(
-				mcp.NewTextResourceContents("file://foo", "text", "abc"),
-			),
+			&mcp.AudioContent{
+				Data:        []byte("a1b2c3"),
+				MIMEType:    "audio/wav",
+				Meta:        mcp.Meta{"key": "value"},
+				Annotations: &mcp.Annotations{Priority: 1.0},
+			},
+			`{"type":"audio","mimeType":"audio/wav","data":"YTFiMmMz","_meta":{"key":"value"},"annotations":{"priority":1}}`,
+		},
+		{
+			&mcp.EmbeddedResource{
+				Resource: &mcp.ResourceContents{URI: "file://foo", MIMEType: "text", Text: "abc"},
+			},
 			`{"type":"resource","resource":{"uri":"file://foo","mimeType":"text","text":"abc"}}`,
 		},
 		{
-			mcp.NewResourceContents(
-				mcp.NewBlobResourceContents("file://foo", "image/png", []byte("a1b2c3")),
-			),
+			&mcp.EmbeddedResource{
+				Resource: &mcp.ResourceContents{URI: "file://foo", MIMEType: "image/png", Blob: []byte("a1b2c3")},
+			},
 			`{"type":"resource","resource":{"uri":"file://foo","mimeType":"image/png","blob":"YTFiMmMz"}}`,
+		},
+		{
+			&mcp.EmbeddedResource{
+				Resource:    &mcp.ResourceContents{URI: "file://foo", MIMEType: "text", Text: "abc"},
+				Meta:        mcp.Meta{"key": "value"},
+				Annotations: &mcp.Annotations{Priority: 1.0},
+			},
+			`{"type":"resource","resource":{"uri":"file://foo","mimeType":"text","text":"abc"},"_meta":{"key":"value"},"annotations":{"priority":1}}`,
 		},
 	}
 
@@ -48,39 +93,41 @@ func TestContent(t *testing.T) {
 		if diff := cmp.Diff(test.want, string(got)); diff != "" {
 			t.Errorf("json.Marshal(%v) mismatch (-want +got):\n%s", test.in, diff)
 		}
-		var out *mcp.ContentBlock
-		if err := json.Unmarshal(got, &out); err != nil {
+		result := fmt.Sprintf(`{"content":[%s]}`, string(got))
+		log.Println(result)
+		var out mcp.CallToolResult
+		if err := json.Unmarshal([]byte(result), &out); err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(test.in, out); diff != "" {
+		if diff := cmp.Diff(test.in, out.Content[0]); diff != "" {
 			t.Errorf("json.Unmarshal(%q) mismatch (-want +got):\n%s", string(got), diff)
 		}
 	}
 }
 
-func TestResourceContents(t *testing.T) {
+func TestEmbeddedResource(t *testing.T) {
 	for _, tt := range []struct {
-		rc   mcp.ResourceContents
+		rc   *mcp.ResourceContents
 		want string // marshaled JSON
 	}{
 		{
-			mcp.ResourceContents{URI: "u", Text: "t"},
+			&mcp.ResourceContents{URI: "u", Text: "t"},
 			`{"uri":"u","text":"t"}`,
 		},
 		{
-			mcp.ResourceContents{URI: "u", MIMEType: "m", Text: "t"},
-			`{"uri":"u","mimeType":"m","text":"t"}`,
+			&mcp.ResourceContents{URI: "u", MIMEType: "m", Text: "t", Meta: mcp.Meta{"key": "value"}},
+			`{"uri":"u","mimeType":"m","text":"t","_meta":{"key":"value"}}`,
 		},
 		{
-			mcp.ResourceContents{URI: "u", Text: "", Blob: nil},
-			`{"uri":"u","text":""}`,
+			&mcp.ResourceContents{URI: "u"},
+			`{"uri":"u"}`,
 		},
 		{
-			mcp.ResourceContents{URI: "u", Blob: []byte{}},
+			&mcp.ResourceContents{URI: "u", Blob: []byte{}},
 			`{"uri":"u","blob":""}`,
 		},
 		{
-			mcp.ResourceContents{URI: "u", Blob: []byte{1}},
+			&mcp.ResourceContents{URI: "u", Blob: []byte{1}},
 			`{"uri":"u","blob":"AQ=="}`,
 		},
 	} {
@@ -91,10 +138,11 @@ func TestResourceContents(t *testing.T) {
 		if got := string(data); got != tt.want {
 			t.Errorf("%#v:\ngot  %s\nwant %s", tt.rc, got, tt.want)
 		}
-		var urc mcp.ResourceContents
-		if err := json.Unmarshal(data, &urc); err != nil {
+		urc := new(mcp.ResourceContents)
+		if err := json.Unmarshal(data, urc); err != nil {
 			t.Fatal(err)
 		}
+		// Since Blob is omitempty, the empty slice changes to nil.
 		if diff := cmp.Diff(tt.rc, urc); diff != "" {
 			t.Errorf("mismatch (-want, +got):\n%s", diff)
 		}

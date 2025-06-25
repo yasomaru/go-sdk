@@ -10,81 +10,117 @@ import (
 	"fmt"
 )
 
-// A ContentBlock is one of a TextContent, ImageContent, AudioContent
-// ResourceLink, or EmbeddedResource.
-// Use [NewTextContent], [NewImageContent], [NewAudioContent], [NewResourceLink]
-// or [NewResourceContents] to create one.
+// A Content is a [TextContent], [ImageContent], [AudioContent] or
+// [EmbeddedResource].
 //
-// The Type field must be one of "text", "image", "audio", "resource_link" or "resource".
-// The constructors above populate this field appropriately.
-// Although at most one of Text, Data, ResourceLink and Resource should be non-zero,
-// consumers of ContentBlock use the Type field to determine which value to use;
-// values in the other fields are ignored.
-// TODO(jba,rfindley): rethink this type. Each kind (text, image, etc.) should have its own
-// meta and annotations, otherwise they're duplicated for Resource and ResourceContents.
-type ContentBlock struct {
-	Meta         map[string]any    `json:"_meta,omitempty"`
-	Type         string            `json:"type"`
-	Text         string            `json:"text,omitempty"`
-	MIMEType     string            `json:"mimeType,omitempty"`
-	Data         []byte            `json:"data,omitempty"`
-	ResourceLink *Resource         `json:"resource_link,omitempty"`
-	Resource     *ResourceContents `json:"resource,omitempty"`
-	Annotations  *Annotations      `json:"annotations,omitempty"`
+// TODO(rfindley): add ResourceLink.
+type Content interface {
+	MarshalJSON() ([]byte, error)
+	fromWire(*wireContent)
 }
 
-func (c *ContentBlock) UnmarshalJSON(data []byte) error {
-	type wireContent ContentBlock // for naive unmarshaling
-	var c2 wireContent
-	if err := json.Unmarshal(data, &c2); err != nil {
-		return err
-	}
-	switch c2.Type {
-	case "text", "image", "audio", "resource", "resource_link":
-	default:
-		return fmt.Errorf("unrecognized content type %s", c.Type)
-	}
-	*c = ContentBlock(c2)
-	return nil
+// TextContent is a textual content.
+type TextContent struct {
+	Text        string
+	Meta        Meta
+	Annotations *Annotations
 }
 
-// NewTextContent creates a [ContentBlock] with text.
-func NewTextContent(text string) *ContentBlock {
-	return &ContentBlock{Type: "text", Text: text}
+func (c *TextContent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&wireContent{
+		Type:        "text",
+		Text:        c.Text,
+		Meta:        c.Meta,
+		Annotations: c.Annotations,
+	})
 }
 
-// NewImageContent creates a [ContentBlock] with image data.
-func NewImageContent(data []byte, mimeType string) *ContentBlock {
-	return &ContentBlock{Type: "image", Data: data, MIMEType: mimeType}
+func (c *TextContent) fromWire(wire *wireContent) {
+	c.Text = wire.Text
+	c.Meta = wire.Meta
+	c.Annotations = wire.Annotations
 }
 
-// NewAudioContent creates a [ContentBlock] with audio data.
-func NewAudioContent(data []byte, mimeType string) *ContentBlock {
-	return &ContentBlock{Type: "audio", Data: data, MIMEType: mimeType}
+// ImageContent contains base64-encoded image data.
+type ImageContent struct {
+	Meta        Meta
+	Annotations *Annotations
+	Data        []byte // base64-encoded
+	MIMEType    string
 }
 
-// NewResourceLink creates a [ContentBlock] with a [Resource].
-func NewResourceLink(r *Resource) *ContentBlock {
-	return &ContentBlock{Type: "resource_link", ResourceLink: r}
+func (c *ImageContent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&wireContent{
+		Type:        "image",
+		MIMEType:    c.MIMEType,
+		Data:        c.Data,
+		Meta:        c.Meta,
+		Annotations: c.Annotations,
+	})
 }
 
-// NewResourceContents creates a [ContentBlock] with an embedded resource (a [ResourceContents]).
-func NewResourceContents(rc *ResourceContents) *ContentBlock {
-	return &ContentBlock{Type: "resource", Resource: rc}
+func (c *ImageContent) fromWire(wire *wireContent) {
+	c.MIMEType = wire.MIMEType
+	c.Data = wire.Data
+	c.Meta = wire.Meta
+	c.Annotations = wire.Annotations
 }
 
-// ResourceContents represents the union of the spec's {Text,Blob}ResourceContents types.
-// See https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/schema/2025-03-26/schema.ts#L524-L551
-// for the inheritance structure.
+// AudioContent contains base64-encoded audio data.
+type AudioContent struct {
+	Data        []byte
+	MIMEType    string
+	Meta        Meta
+	Annotations *Annotations
+}
 
-// A ResourceContents is either a TextResourceContents or a BlobResourceContents.
-// Use [NewTextResourceContents] or [NextBlobResourceContents] to create one.
+func (c AudioContent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&wireContent{
+		Type:        "audio",
+		MIMEType:    c.MIMEType,
+		Data:        c.Data,
+		Meta:        c.Meta,
+		Annotations: c.Annotations,
+	})
+}
+
+func (c *AudioContent) fromWire(wire *wireContent) {
+	c.MIMEType = wire.MIMEType
+	c.Data = wire.Data
+	c.Meta = wire.Meta
+	c.Annotations = wire.Annotations
+}
+
+// EmbeddedResource contains embedded resources.
+type EmbeddedResource struct {
+	Resource    *ResourceContents
+	Meta        Meta
+	Annotations *Annotations
+}
+
+func (c *EmbeddedResource) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&wireContent{
+		Type:        "resource",
+		Resource:    c.Resource,
+		Meta:        c.Meta,
+		Annotations: c.Annotations,
+	})
+}
+
+func (c *EmbeddedResource) fromWire(wire *wireContent) {
+	c.Resource = wire.Resource
+	c.Meta = wire.Meta
+	c.Annotations = wire.Annotations
+}
+
+// ResourceContents contains the contents of a specific resource or
+// sub-resource.
 type ResourceContents struct {
-	Meta     map[string]any `json:"_meta,omitempty"`
-	URI      string         `json:"uri"` // resource location; must not be empty
-	MIMEType string         `json:"mimeType,omitempty"`
-	Text     string         `json:"text"`
-	Blob     []byte         `json:"blob,omitempty"` // if nil, then text; else blob
+	URI      string `json:"uri"`
+	MIMEType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     []byte `json:"blob,omitempty"`
+	Meta     Meta   `json:"_meta,omitempty"`
 }
 
 func (r ResourceContents) MarshalJSON() ([]byte, error) {
@@ -114,25 +150,55 @@ func (r ResourceContents) MarshalJSON() ([]byte, error) {
 	return json.Marshal(br)
 }
 
-// NewTextResourceContents returns a [ResourceContents] containing text.
-func NewTextResourceContents(uri, mimeType, text string) *ResourceContents {
-	return &ResourceContents{
-		URI:      uri,
-		MIMEType: mimeType,
-		Text:     text,
-		// Blob is nil, indicating this is a TextResourceContents.
-	}
+// wireContent is the wire format for content.
+// It represents the protocol types TextContent, ImageContent, AudioContent
+// and EmbeddedResource.
+// The Type field distinguishes them. In the protocol, each type has a constant
+// value for the field.
+// At most one of Text, Data, and Resource is non-zero.
+type wireContent struct {
+	Type        string            `json:"type"`
+	Text        string            `json:"text,omitempty"`
+	MIMEType    string            `json:"mimeType,omitempty"`
+	Data        []byte            `json:"data,omitempty"`
+	Resource    *ResourceContents `json:"resource,omitempty"`
+	Meta        Meta              `json:"_meta,omitempty"`
+	Annotations *Annotations      `json:"annotations,omitempty"`
 }
 
-// NewBlobResourceContents returns a [ResourceContents] containing a byte slice.
-func NewBlobResourceContents(uri, mimeType string, blob []byte) *ResourceContents {
-	// The only way to distinguish text from blob is a non-nil Blob field.
-	if blob == nil {
-		blob = []byte{}
+func contentsFromWire(wires []*wireContent, allow map[string]bool) ([]Content, error) {
+	var blocks []Content
+	for _, wire := range wires {
+		block, err := contentFromWire(wire, allow)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, block)
 	}
-	return &ResourceContents{
-		URI:      uri,
-		MIMEType: mimeType,
-		Blob:     blob,
+	return blocks, nil
+}
+
+func contentFromWire(wire *wireContent, allow map[string]bool) (Content, error) {
+	if allow != nil && !allow[wire.Type] {
+		return nil, fmt.Errorf("invalid content type %q", wire.Type)
 	}
+	switch wire.Type {
+	case "text":
+		v := new(TextContent)
+		v.fromWire(wire)
+		return v, nil
+	case "image":
+		v := new(ImageContent)
+		v.fromWire(wire)
+		return v, nil
+	case "audio":
+		v := new(AudioContent)
+		v.fromWire(wire)
+		return v, nil
+	case "resource":
+		v := new(EmbeddedResource)
+		v.fromWire(wire)
+		return v, nil
+	}
+	return nil, fmt.Errorf("internal error: unrecognized content type %s", wire.Type)
 }

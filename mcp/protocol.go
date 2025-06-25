@@ -11,6 +11,8 @@ package mcp
 //   sdiff -l <(curl $prefix/2025-03-26/schema.ts) <(curl $prefix/2025/06-18/schema.ts)
 
 import (
+	"encoding/json"
+
 	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
 
@@ -63,7 +65,7 @@ type CallToolResult struct {
 	Meta `json:"_meta,omitempty"`
 	// A list of content objects that represent the unstructured result of the tool
 	// call.
-	Content []*ContentBlock `json:"content"`
+	Content []Content `json:"content"`
 	// Whether the tool call ended in an error.
 	//
 	// If not set, this is assumed to be false (the call was successful).
@@ -83,13 +85,32 @@ type CallToolResult struct {
 	StructuredContent map[string]any `json:"structuredContent,omitempty"`
 }
 
+// UnmarshalJSON handles the unmarshalling of content into the Content
+// interface.
+func (x *CallToolResult) UnmarshalJSON(data []byte) error {
+	type res CallToolResult // avoid recursion
+	var wire struct {
+		res
+		Content []*wireContent `json:"content"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	var err error
+	if wire.res.Content, err = contentsFromWire(wire.Content, nil); err != nil {
+		return err
+	}
+	*x = CallToolResult(wire.res)
+	return nil
+}
+
 type CallToolResultFor[Out any] struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
 	Meta `json:"_meta,omitempty"`
 	// A list of content objects that represent the unstructured result of the tool
 	// call.
-	Content []*ContentBlock `json:"content"`
+	Content []Content `json:"content"`
 	// Whether the tool call ended in an error.
 	//
 	// If not set, this is assumed to be false (the call was successful).
@@ -177,7 +198,7 @@ type CreateMessageResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
 	Meta    `json:"_meta,omitempty"`
-	Content any `json:"content"`
+	Content Content `json:"content"`
 	// The name of the model that generated the message.
 	Model string `json:"model"`
 	Role  Role   `json:"role"`
@@ -518,8 +539,27 @@ func (x *PromptListChangedParams) SetProgressToken(t any) { setProgressToken(x, 
 // This is similar to `SamplingMessage`, but also supports the embedding of
 // resources from the MCP server.
 type PromptMessage struct {
-	Content *ContentBlock `json:"content"`
-	Role    Role          `json:"role"`
+	Content Content `json:"content"`
+	Role    Role    `json:"role"`
+}
+
+// UnmarshalJSON handles the unmarshalling of content into the Content
+// interface.
+func (m *PromptMessage) UnmarshalJSON(data []byte) error {
+	type msg PromptMessage // avoid recursion
+	var wire struct {
+		msg
+		Content *wireContent `json:"content"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	var err error
+	if wire.msg.Content, err = contentFromWire(wire.Content, nil); err != nil {
+		return err
+	}
+	*m = PromptMessage(wire.msg)
+	return nil
 }
 
 type ReadResourceParams struct {
@@ -650,8 +690,27 @@ type ElicitationCapabilities struct{}
 
 // Describes a message issued to or received from an LLM API.
 type SamplingMessage struct {
-	Content any  `json:"content"`
-	Role    Role `json:"role"`
+	Content Content `json:"content"`
+	Role    Role    `json:"role"`
+}
+
+// UnmarshalJSON handles the unmarshalling of content into the Content
+// interface.
+func (m *SamplingMessage) UnmarshalJSON(data []byte) error {
+	type msg SamplingMessage // avoid recursion
+	var wire struct {
+		msg
+		Content *wireContent `json:"content"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	var err error
+	if wire.msg.Content, err = contentFromWire(wire.Content, map[string]bool{"text": true, "image": true, "audio": true}); err != nil {
+		return err
+	}
+	*m = SamplingMessage(wire.msg)
+	return nil
 }
 
 type SetLevelParams struct {

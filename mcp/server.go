@@ -412,7 +412,9 @@ func fileResourceHandler(dir string) ResourceHandler {
 			return nil, err
 		}
 		// TODO(jba): figure out mime type. Omit for now: Server.readResource will fill it in.
-		return &ReadResourceResult{Contents: []*ResourceContents{NewBlobResourceContents(params.URI, "", data)}}, nil
+		return &ReadResourceResult{Contents: []*ResourceContents{
+			&ResourceContents{URI: params.URI, Blob: data},
+		}}, nil
 	}
 }
 

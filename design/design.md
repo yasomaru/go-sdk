@@ -269,7 +269,7 @@ These types will be included in the `mcp` package, but will be unexported unless
 
 For user-provided data, we use `json.RawMessage` or `map[string]any`, depending on the use case.
 
-For union types, which can't be represented in Go (specifically `Content` and `ResourceContents`), we prefer distinguished unions: struct types with fields corresponding to the union of all properties for union elements.
+For union types, which can't be represented in Go, we use an interface for `Content` (implemented by types like `TextContent`). For other union types like `ResourceContents`, we use a struct with optional fields.
 
 For brevity, only a few examples are shown here:
 
@@ -284,20 +284,16 @@ type CallToolResult struct {
 	IsError bool      `json:"isError,omitempty"`
 }
 
-// Content is the wire format for content.
-//
-// The Type field distinguishes the type of the content.
-// At most one of Text, MIMEType, Data, and Resource is non-zero.
-type Content struct {
-	Type     string            `json:"type"`
-	Text     string            `json:"text,omitempty"`
-	MIMEType string            `json:"mimeType,omitempty"`
-	Data     []byte            `json:"data,omitempty"`
-	Resource *ResourceContents `json:"resource,omitempty"`
+// A Content is a [TextContent], [ImageContent], [AudioContent] or
+// [EmbeddedResource].
+type Content interface {
+	// (unexported methods)
 }
 
-// NewTextContent creates a [Content] with text.
-func NewTextContent(text string) *Content
+// TextContent is a textual content.
+type TextContent struct {
+	Text string
+}
 // etc.
 ```
 

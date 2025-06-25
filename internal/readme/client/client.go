@@ -40,7 +40,7 @@ func main() {
 		log.Fatal("tool failed")
 	}
 	for _, c := range res.Content {
-		log.Print(c.Text)
+		log.Print(c.(*mcp.TextContent).Text)
 	}
 }
 

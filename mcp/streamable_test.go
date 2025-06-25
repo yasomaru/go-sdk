@@ -82,7 +82,9 @@ func TestStreamableTransports(t *testing.T) {
 
 	// 5. Verify that the correct response is received.
 	want := &CallToolResult{
-		Content: []*ContentBlock{{Type: "text", Text: "hi streamy"}},
+		Content: []Content{
+			&TextContent{Text: "hi streamy"},
+		},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("CallTool() returned unexpected content (-want +got):\n%s", diff)

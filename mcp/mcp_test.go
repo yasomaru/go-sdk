@@ -34,7 +34,7 @@ func sayHi(ctx context.Context, ss *ServerSession, params *CallToolParamsFor[hiP
 	if err := ss.Ping(ctx, nil); err != nil {
 		return nil, fmt.Errorf("ping failed: %v", err)
 	}
-	return &CallToolResultFor[any]{Content: []*ContentBlock{NewTextContent("hi " + params.Arguments.Name)}}, nil
+	return &CallToolResultFor[any]{Content: []Content{&TextContent{Text: "hi " + params.Arguments.Name}}}, nil
 }
 
 func TestEndToEnd(t *testing.T) {
@@ -142,7 +142,7 @@ func TestEndToEnd(t *testing.T) {
 		wantReview := &GetPromptResult{
 			Description: "Code review prompt",
 			Messages: []*PromptMessage{{
-				Content: NewTextContent("Please review the following code: 1+1"),
+				Content: &TextContent{Text: "Please review the following code: 1+1"},
 				Role:    "user",
 			}},
 		}
@@ -195,7 +195,9 @@ func TestEndToEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 		wantHi := &CallToolResult{
-			Content: []*ContentBlock{{Type: "text", Text: "hi user"}},
+			Content: []Content{
+				&TextContent{Text: "hi user"},
+			},
 		}
 		if diff := cmp.Diff(wantHi, gotHi); diff != "" {
 			t.Errorf("tools/call 'greet' mismatch (-want +got):\n%s", diff)
@@ -212,7 +214,9 @@ func TestEndToEnd(t *testing.T) {
 		}
 		wantFail := &CallToolResult{
 			IsError: true,
-			Content: []*ContentBlock{{Type: "text", Text: errTestFailure.Error()}},
+			Content: []Content{
+				&TextContent{Text: errTestFailure.Error()},
+			},
 		}
 		if diff := cmp.Diff(wantFail, gotFail); diff != "" {
 			t.Errorf("tools/call 'fail' mismatch (-want +got):\n%s", diff)
@@ -451,7 +455,7 @@ var (
 				return &GetPromptResult{
 					Description: "Code review prompt",
 					Messages: []*PromptMessage{
-						{Role: "user", Content: NewTextContent("Please review the following code: " + params.Arguments["Code"])},
+						{Role: "user", Content: &TextContent{Text: "Please review the following code: " + params.Arguments["Code"]}},
 					},
 				}, nil
 			},
@@ -505,7 +509,9 @@ func handleEmbeddedResource(_ context.Context, _ *ServerSession, params *ReadRes
 		return nil, fmt.Errorf("no embedded resource named %q", key)
 	}
 	return &ReadResourceResult{
-		Contents: []*ResourceContents{NewTextResourceContents(params.URI, "text/plain", text)},
+		Contents: []*ResourceContents{
+			{URI: params.URI, MIMEType: "text/plain", Text: text},
+		},
 	}, nil
 }
 

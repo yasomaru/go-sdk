@@ -44,7 +44,6 @@ info.txt
 	"jsonrpc": "2.0",
 	"id": 1,
 	"result": {
-		"_meta": {},
 		"capabilities": {
 			"completions": {},
 			"logging": {},
@@ -69,7 +68,6 @@ info.txt
 	"jsonrpc": "2.0",
 	"id": 2,
 	"result": {
-		"_meta": {},
 		"resources": [
 			{
 				"mimeType": "text/plain",
@@ -88,7 +86,6 @@ info.txt
 	"jsonrpc": "2.0",
 	"id": 3,
 	"result": {
-		"_meta": {},
 		"contents": [
 			{
 				"uri": "embedded:info",
@@ -107,7 +104,6 @@ info.txt
 	"jsonrpc": "2.0",
 	"id": 3,
 	"result": {
-		"_meta": {},
 		"contents": [
 			{
 				"uri": "file:///info.txt",

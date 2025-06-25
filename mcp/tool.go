@@ -132,7 +132,7 @@ func newRawHandler(st *ServerTool) rawToolHandler {
 		// rather than returned as jsonrpc2 server errors.
 		if err != nil {
 			return &CallToolResult{
-				Content: []*ContentBlock{NewTextContent(err.Error())},
+				Content: []Content{&TextContent{Text: err.Error()}},
 				IsError: true,
 			}, nil
 		}

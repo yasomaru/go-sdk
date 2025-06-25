@@ -24,8 +24,8 @@ type HiArgs struct {
 
 func SayHi(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParamsFor[HiArgs]) (*mcp.CallToolResultFor[struct{}], error) {
 	return &mcp.CallToolResultFor[struct{}]{
-		Content: []*mcp.ContentBlock{
-			mcp.NewTextContent("Hi " + params.Name),
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "Hi " + params.Name},
 		},
 	}, nil
 }
@@ -36,7 +36,7 @@ func PromptHi(ctx context.Context, ss *mcp.ServerSession, params *mcp.GetPromptP
 	return &mcp.GetPromptResult{
 		Description: "Code review prompt",
 		Messages: []*mcp.PromptMessage{
-			{Role: "user", Content: mcp.NewTextContent("Say hi to " + params.Arguments["name"])},
+			{Role: "user", Content: &mcp.TextContent{Text: "Say hi to " + params.Arguments["name"]}},
 		},
 	}, nil
 }
@@ -93,6 +93,8 @@ func handleEmbeddedResource(_ context.Context, _ *mcp.ServerSession, params *mcp
 		return nil, fmt.Errorf("no embedded resource named %q", key)
 	}
 	return &mcp.ReadResourceResult{
-		Contents: []*mcp.ResourceContents{mcp.NewTextResourceContents(params.URI, "text/plain", text)},
+		Contents: []*mcp.ResourceContents{
+			{URI: params.URI, MIMEType: "text/plain", Text: text},
+		},
 	}, nil
 }
