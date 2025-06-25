@@ -60,10 +60,9 @@ remain open for at least a week to allow discussion before being accepted or
 declined by a maintainer.
 
 Proposals that are straightforward and uncontroversial may be approved based on
-discussion on the issue tracker or in a GitHub Discussion.
-However, proposals that are deemed to be sufficiently
-unclear or complicated may be deferred to a regular steering meeting (see
-'Governance' below).
+discussion on the issue tracker or in a GitHub Discussion. However, proposals
+that are deemed to be sufficiently unclear or complicated may be deferred to a
+regular Working Group meeting (see 'Governance' below).
 
 This process is similar to the [Go proposal
 process](https://github.com/golang/proposal), but is necessarily lighter weight
@@ -106,18 +105,18 @@ If you encounter a conduct-related issue, please mail conduct@golang.org.
 
 Initially, the Go SDK repository will be administered by the Go team and
 Anthropic, and they will be the approvers (the set of people able to merge PRs
-to the SDK), also referred to as the 'working group'. The policies here are
+to the SDK), also referred to as the 'Working Group'. The policies here are
 also intended to satisfy necessary constraints of the Go team's participation
 in the project. This may change in the future: see 'Ongoing Evaluation' below.
 
-### Steering meetings
+### Working Group meetings
 
-On a regular basis, the working group will host a virtual steering meeting to
-discuss outstanding proposals and other changes to the SDK. These meetings and
-their agendas will be announced in advance, and open to all. The
-meetings will be recorded, and recordings and meeting notes will be made
-available afterward. (TODO: decide on a mechanism for tracking these
-meetings--likely a GitHub issue.)
+On a regular basis, the Working Group will host a virtual meeting to discuss
+outstanding proposals and other changes to the SDK. These meetings and their
+agendas will be announced in advance, and open to all. The meetings will be
+recorded, and recordings and meeting notes will be made available afterward.
+(TODO: decide on a mechanism for tracking these meetings--likely a GitHub
+issue.)
 
 This process is similar to the [Go Tools
 call](https://go.dev/wiki/golang-tools), though it is expected that meetings
@@ -137,26 +136,20 @@ providers. The antitrust policy below details precise terms that should be
 adhered to in order to ensure that the evolution and governance of the SDK remain
 procompetitive.
 
-A note to readers: this policy was drafted in consultation with counsel, and so
-uses terms like 'Steering Committee', which may be confusing in the context of
-other 'steering committees' for Model Context Protocol. In the context here,
-'Steering Committee' means the working group: the set of people who are able to
-approve pull requests and/or make administrative changes to the project.
-
 ### Antitrust policy
 
 Note: all changes to the policy in this section must be approved by legal
 counsel.
 
-The Go+Anthropic MCP SDK Steering Committee (the “Committee”) is established to
+The Go+Anthropic MCP SDK Working Group (the “Working Group”) is established to
 guide and review technical contributions to an open-source Go software
-development kit (“SDK”) for the Model Context Protocol (“MCP”). The Committee
+development kit (“SDK”) for the Model Context Protocol (“MCP”). The Working Group
 and its members are committed to operating for procompetitive purposes that
 accelerate AI development and benefit businesses and consumers. This
 collaboration is focused on technical and infrastructure objectives – namely,
-developing and maintaining a neutral, open-source, and MIT-licensed tool.
+developing and maintaining a neutral, open-source, and MIT-licensed library.
 Google and Anthropic, as well as other stakeholders, participate with the
-understanding that the Committee’s sole purpose is to improve interoperability
+understanding that the Working Group’s sole purpose is to improve interoperability
 and innovation in the MCP ecosystem.
 
 Antitrust law recognizes that when competitors collaborate for valid reasons
@@ -165,14 +158,14 @@ procompetitive. This Antitrust Compliance Policy (the “Policy”) therefore
 outlines guidelines and safeguards to ensure the collaboration remains focused
 on its technical mission.
 
-The Policy applies to all Committee activities and communications, including
-official meetings, subcommittee discussions, emails, shared documents, and any
-other interactions under the Committee’s auspices (e.g., group chats, version
-control systems). It applies to all participants from Google, Anthropic, and
-any other member organizations or independent contributors involved. Each
-participating entity should ensure its representatives understand and uphold
-these rules. By participating, members agree to follow the Policy in both
-letter and spirit.
+The Policy applies to all Working Group activities and communications,
+including official meetings, subcommittee discussions, emails, shared
+documents, and any other interactions under the Working Group’s auspices (e.g.,
+group chats, version control systems). It applies to all participants from
+Google, Anthropic, and any other member organizations or independent
+contributors involved in the Working Group. Each participating entity should
+ensure its representatives understand and uphold these rules. By participating,
+members agree to follow the Policy in both letter and spirit.
 
 #### Governance Procedures and Principles
 
@@ -182,7 +175,7 @@ letter and spirit.
   company’s AI commercial strategy, sales, marketing, pricing, or other
   competitively or strategically sensitive business planning.
 - **Agenda Preparation.** A written agenda should be circulated before each
-  Committee meeting. Agenda items should focus on the SDK’s technical
+  Working Group meeting. Agenda items should focus on the SDK’s technical
   development, maintenance, or documentation. Where appropriate, counsel should
   review the agenda prior to circulation to ensure compliance with the Policy.
 - **Policy Reminder at Start.** Meetings should begin with a brief antitrust
@@ -190,7 +183,7 @@ letter and spirit.
 - **Minutes.** Meetings will be minuted by a designated participant, and
   neutrally record attendees, roles, topics discussed, action items, and
   outcomes. Draft minutes will be circulated to all participants.
-- **Documentation and Transparency.** Steering Committee outputs are intended
+- **Documentation and Transparency.** Working Group outputs are intended
   for public release. Significant design decisions and discussion outcomes
   should be documented publicly. If a topic cannot be safely disclosed
   publicly, it likely does not belong in this forum.
@@ -201,7 +194,7 @@ letter and spirit.
 
 ### Information Exchange Guidelines
 
-**Appropriate Topics.** Committee members are anticipated to remain within the
+**Appropriate Topics.** Working Group members are anticipated to remain within the
 project’s technical scope. In general, discussions should focus on improving
 the Go SDK for MCP in a transparent, collaborative, and non-exclusive manner.
 The following topics are appropriate and expected:
@@ -216,17 +209,17 @@ The following topics are appropriate and expected:
 - **Standards and Interoperability:** Ensuring SDK compliance with MCP or other
   open technical standards. Any standardization effort should be open,
   voluntary, and tailored to promote interoperability.
-- **Public Information:** Any public information relevant to the Committee’s
-  technical work (e.g., published research, open-source code from outside
-  projects, publicly documented API specs).
+- **Public Information:** Any public information relevant to the Working
+  Group’s technical work (e.g., published research, open-source code from
+  outside projects, publicly documented API specs).
 
 **Inappropriate Topics.** To ensure compliance with antitrust law and maintain
 the open character of the collaboration, the following subjects should not be
-discussed in Committee meetings, side conversations, or related communications:
+discussed in Working Group meetings, side conversations, or related communications:
 
 - **Pricing and Commercial Terms:** Do not discuss prices, pricing strategy,
   discounting, or future pricing plans for Claude, Gemini, or any other AI
-  product or service provided by Committee members.
+  product or service provided by Working Group members.
 - **Sales or Output:** Avoid sharing sales volumes, revenue, customer counts,
   market shares, production plans, or any business performance metrics.
 - **Product Roadmaps (beyond SDK):** Do not disclose internal plans for AI
@@ -237,7 +230,7 @@ discussed in Committee meetings, side conversations, or related communications:
   negotiations, or relationships with commercial partners.
 - **Non-SDK Proprietary Tech:** Keep discussions focused on the open SDK.
   Sharing of information should be limited to what is needed to achieve the
-  Committee’s goals. Each party’s internal model architectures, fine-tuning
+  Working Group’s goals. Each party’s internal model architectures, fine-tuning
   approaches, or training methods unrelated to the project should not be
   disclosed.
 - **HR or Labor Matters:** No discussions about wages, hiring plans, or
@@ -245,17 +238,17 @@ discussed in Committee meetings, side conversations, or related communications:
 
 #### Enforcement and Support
 
-- **Shared Responsibility.** All Committee participants share responsibility
+- **Shared Responsibility.** All Working Group participants share responsibility
   for upholding the Policy. While legal counsel can provide support, day-to-day
   compliance is a function of culture and practice.
 - **Designated Legal Contacts.** Each participating entity should designate a
   legal point of contact responsible for reviewing meeting materials (e.g.,
   agendas, minutes) and fielding questions about compliance. These contacts
-  should be included in the Committee distribution list for all official
+  should be included in the Working Group distribution list for all official
   materials and should be consulted in advance of any meetings where sensitive
   topics may arise.
 - **Final Note.** The Policy is not meant to chill legitimate technical
-  collaboration. It is meant to ensure that the Committee can focus on its
+  collaboration. It is meant to ensure that the Working Group can focus on its
   mission without creating unnecessary legal risk or attracting regulator
   scrutiny. Participants who follow the Policy and avoid Inappropriate Topics
   will remain squarely within the procompetitive zone.
@@ -265,7 +258,7 @@ discussed in Committee meetings, side conversations, or related communications:
 On an ongoing basis, the administrators of the SDK will evaluate whether it is
 keeping pace with changes to the MCP spec and meeting its goals of openness and
 transparency. If it is not meeting these goals, either because it exceeds the
-bandwidth of its current Approvers, or because the processes here are
-inadequate, these processes will be re-evaluated by the Approvers. At this
-time, the Approvers set may be expanded to include additional community
+bandwidth of its current Working Group, or because the processes here are
+inadequate, these processes will be re-evaluated by the Working Group. At this
+time, the Working Group set may be expanded to include additional community
 members, based on their history of strong contribution.
