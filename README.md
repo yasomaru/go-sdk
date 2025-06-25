@@ -6,13 +6,14 @@ module, once it exists. -->
 
 [![PkgGoDev](https://pkg.go.dev/badge/golang.org/x/tools)](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk)
 
-This repository contains an implementation of the official Go software
-development kit (SDK) for the Model Context Protocol (MCP).
+This repository contains an unreleased implementation of the official Go
+software development kit (SDK) for the Model Context Protocol (MCP).
 
-**WARNING**: The SDK is currently unstable and subject to breaking changes.
-Please test it out and file bug reports or API proposals. The [TODO](#todo)
-section below outlines outstanding release blockers. We aim to release a stable
-version of the SDK in August, 2025.
+**WARNING**: The SDK should be considered unreleased, and is currently unstable
+and subject to breaking changes. Please test it out and file bug reports or API
+proposals, but don't use it in real projects. See the issue tracker for known
+issues and missing features. We aim to release a stable version of the SDK in
+August, 2025.
 
 ## Package documentation
 
@@ -110,18 +111,6 @@ func main() {
 ```
 
 The `examples/` directory contains more example clients and servers.
-
-## TODO
-
-The following TODOs block the release of this SDK:
-
-- Better support for resumability in the Streamable HTTP transport: a
-  server-side event store and client-side retry configuration.
-- OAuth support (or examples of implementing OAuth using middleware).
-- Support for the changes in the
-  [2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18/changelog)
-  version of the MCP spec.
-- More examples and documentation.
 
 ## Design
 

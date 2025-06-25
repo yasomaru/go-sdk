@@ -26,13 +26,13 @@ type ToolHandlerFor[In, Out any] func(context.Context, *ServerSession, *CallTool
 // A rawToolHandler is like a ToolHandler, but takes the arguments as as json.RawMessage.
 type rawToolHandler = func(context.Context, *ServerSession, *CallToolParamsFor[json.RawMessage]) (*CallToolResult, error)
 
-// A Tool is a tool definition that is bound to a tool handler.
+// A ServerTool is a tool definition that is bound to a tool handler.
 type ServerTool struct {
 	Tool    *Tool
 	Handler ToolHandler
-	// Set in NewServerTool or Server.AddToolsErr.
+	// Set in NewServerTool or Server.addToolsErr.
 	rawHandler rawToolHandler
-	// Resolved tool schemas. Set in Server.AddToolsErr.
+	// Resolved tool schemas. Set in Server.addToolsErr.
 	inputResolved, outputResolved *jsonschema.Resolved
 }
 

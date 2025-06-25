@@ -26,7 +26,7 @@ var ErrConnectionClosed = errors.New("connection closed")
 // and server.
 //
 // Transports should be used for at most one call to [Server.Connect] or
-// [Client.Start].
+// [Client.Connect].
 type Transport interface {
 	// Connect returns the logical JSON-RPC connection..
 	//

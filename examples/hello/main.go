@@ -30,8 +30,6 @@ func SayHi(ctx context.Context, ss *mcp.ServerSession, params *mcp.CallToolParam
 	}, nil
 }
 
-// TODO(jba): it should be OK for args to be a pointer, but this fails in
-// jsonschema. Needs investigation.
 func PromptHi(ctx context.Context, ss *mcp.ServerSession, params *mcp.GetPromptParams) (*mcp.GetPromptResult, error) {
 	return &mcp.GetPromptResult{
 		Description: "Code review prompt",
