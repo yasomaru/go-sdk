@@ -53,7 +53,7 @@ func TestSSEServer(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantHi := &CallToolResult{
-				Content: []*Content{{Type: "text", Text: "hi user"}},
+				Content: []*ContentBlock{{Type: "text", Text: "hi user"}},
 			}
 			if diff := cmp.Diff(wantHi, gotHi); diff != "" {
 				t.Errorf("tools/call 'greet' mismatch (-want +got):\n%s", diff)

@@ -10,58 +10,67 @@ import (
 	"fmt"
 )
 
-// Content is the wire format for content.
-// It represents the protocol types TextContent, ImageContent, AudioContent
-// and EmbeddedResource.
-// Use [NewTextContent], [NewImageContent], [NewAudioContent] or [NewResourceContent]
-// to create one.
+// A ContentBlock is one of a TextContent, ImageContent, AudioContent
+// ResourceLink, or EmbeddedResource.
+// Use [NewTextContent], [NewImageContent], [NewAudioContent], [NewResourceLink]
+// or [NewResourceContents] to create one.
 //
-// The Type field must be one of "text", "image", "audio" or "resource". The
-// constructors above populate this field appropriately.
-// Although at most one of Text, Data, and Resource should be non-zero, consumers of Content
-// use the Type field to determine which value to use; values in the other fields are ignored.
-type Content struct {
-	Type        string            `json:"type"`
-	Text        string            `json:"text,omitempty"`
-	MIMEType    string            `json:"mimeType,omitempty"`
-	Data        []byte            `json:"data,omitempty"`
-	Resource    *ResourceContents `json:"resource,omitempty"`
-	Annotations *Annotations      `json:"annotations,omitempty"`
+// The Type field must be one of "text", "image", "audio", "resource_link" or "resource".
+// The constructors above populate this field appropriately.
+// Although at most one of Text, Data, ResourceLink and Resource should be non-zero,
+// consumers of ContentBlock use the Type field to determine which value to use;
+// values in the other fields are ignored.
+// TODO(jba,rfindley): rethink this type. Each kind (text, image, etc.) should have its own
+// meta and annotations, otherwise they're duplicated for Resource and ResourceContents.
+type ContentBlock struct {
+	Meta         map[string]any    `json:"_meta,omitempty"`
+	Type         string            `json:"type"`
+	Text         string            `json:"text,omitempty"`
+	MIMEType     string            `json:"mimeType,omitempty"`
+	Data         []byte            `json:"data,omitempty"`
+	ResourceLink *Resource         `json:"resource_link,omitempty"`
+	Resource     *ResourceContents `json:"resource,omitempty"`
+	Annotations  *Annotations      `json:"annotations,omitempty"`
 }
 
-func (c *Content) UnmarshalJSON(data []byte) error {
-	type wireContent Content // for naive unmarshaling
+func (c *ContentBlock) UnmarshalJSON(data []byte) error {
+	type wireContent ContentBlock // for naive unmarshaling
 	var c2 wireContent
 	if err := json.Unmarshal(data, &c2); err != nil {
 		return err
 	}
 	switch c2.Type {
-	case "text", "image", "audio", "resource":
+	case "text", "image", "audio", "resource", "resource_link":
 	default:
 		return fmt.Errorf("unrecognized content type %s", c.Type)
 	}
-	*c = Content(c2)
+	*c = ContentBlock(c2)
 	return nil
 }
 
-// NewTextContent creates a [Content] with text.
-func NewTextContent(text string) *Content {
-	return &Content{Type: "text", Text: text}
+// NewTextContent creates a [ContentBlock] with text.
+func NewTextContent(text string) *ContentBlock {
+	return &ContentBlock{Type: "text", Text: text}
 }
 
-// NewImageContent creates a [Content] with image data.
-func NewImageContent(data []byte, mimeType string) *Content {
-	return &Content{Type: "image", Data: data, MIMEType: mimeType}
+// NewImageContent creates a [ContentBlock] with image data.
+func NewImageContent(data []byte, mimeType string) *ContentBlock {
+	return &ContentBlock{Type: "image", Data: data, MIMEType: mimeType}
 }
 
-// NewAudioContent creates a [Content] with audio data.
-func NewAudioContent(data []byte, mimeType string) *Content {
-	return &Content{Type: "audio", Data: data, MIMEType: mimeType}
+// NewAudioContent creates a [ContentBlock] with audio data.
+func NewAudioContent(data []byte, mimeType string) *ContentBlock {
+	return &ContentBlock{Type: "audio", Data: data, MIMEType: mimeType}
 }
 
-// NewResourceContent creates a [Content] with an embedded resource.
-func NewResourceContent(resource *ResourceContents) *Content {
-	return &Content{Type: "resource", Resource: resource}
+// NewResourceLink creates a [ContentBlock] with a [Resource].
+func NewResourceLink(r *Resource) *ContentBlock {
+	return &ContentBlock{Type: "resource_link", ResourceLink: r}
+}
+
+// NewResourceContents creates a [ContentBlock] with an embedded resource (a [ResourceContents]).
+func NewResourceContents(rc *ResourceContents) *ContentBlock {
+	return &ContentBlock{Type: "resource", Resource: rc}
 }
 
 // ResourceContents represents the union of the spec's {Text,Blob}ResourceContents types.
@@ -71,10 +80,11 @@ func NewResourceContent(resource *ResourceContents) *Content {
 // A ResourceContents is either a TextResourceContents or a BlobResourceContents.
 // Use [NewTextResourceContents] or [NextBlobResourceContents] to create one.
 type ResourceContents struct {
-	URI      string `json:"uri"` // resource location; must not be empty
-	MIMEType string `json:"mimeType,omitempty"`
-	Text     string `json:"text"`
-	Blob     []byte `json:"blob,omitempty"` // if nil, then text; else blob
+	Meta     map[string]any `json:"_meta,omitempty"`
+	URI      string         `json:"uri"` // resource location; must not be empty
+	MIMEType string         `json:"mimeType,omitempty"`
+	Text     string         `json:"text"`
+	Blob     []byte         `json:"blob,omitempty"` // if nil, then text; else blob
 }
 
 func (r ResourceContents) MarshalJSON() ([]byte, error) {

@@ -146,7 +146,6 @@ func (s *Server) addToolsErr(tools ...*ServerTool) error {
 				st.inputResolved = r
 			}
 
-			// TODO: uncomment when output schemas drop.
 			// if st.Tool.OutputSchema != nil {
 			// 	st.outputResolved, err := st.Tool.OutputSchema.Resolve(&jsonschema.ResolveOptions{ValidateDefaults: true})
 			// 	if err != nil {

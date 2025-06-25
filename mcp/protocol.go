@@ -4,6 +4,12 @@
 
 package mcp
 
+// Protocol types for version 2025-06-18.
+// To see the schema changes from the previous version, run:
+//
+//   prefix=https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/refs/heads/main/schema
+//   sdiff -l <(curl $prefix/2025-03-26/schema.ts) <(curl $prefix/2025/06-18/schema.ts)
+
 import (
 	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 )
@@ -16,6 +22,13 @@ type Annotations struct {
 	// It can include multiple entries to indicate content useful for multiple
 	// audiences (e.g., `["user", "assistant"]`).
 	Audience []Role `json:"audience,omitempty"`
+	// The moment the resource was last modified, as an ISO 8601 formatted string.
+	//
+	// Should be an ISO 8601 formatted string (e.g., "2025-01-12T15:00:58Z").
+	//
+	// Examples: last activity timestamp in an open file, timestamp when the
+	// resource was attached, etc.
+	LastModified string `json:"lastModified,omitempty"`
 	// Describes how important this data is for operating the server.
 	//
 	// A value of 1 means "most important," and indicates that the data is
@@ -27,63 +40,78 @@ type Annotations struct {
 type CallToolParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta      Meta   `json:"_meta,omitempty"`
+	Meta      `json:"_meta,omitempty"`
 	Arguments any    `json:"arguments,omitempty"`
 	Name      string `json:"name"`
 }
 
-func (x *CallToolParams) GetMeta() *Meta { return &x.Meta }
+func (x *CallToolParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *CallToolParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 type CallToolParamsFor[In any] struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta      Meta   `json:"_meta,omitempty"`
+	Meta      `json:"_meta,omitempty"`
 	Arguments In     `json:"arguments,omitempty"`
 	Name      string `json:"name"`
 }
 
-func (x *CallToolParamsFor[In]) GetMeta() *Meta { return &x.Meta }
-
 // The server's response to a tool call.
-//
-// Any errors that originate from the tool SHOULD be reported inside the result
-// object, with `isError` set to true, _not_ as an MCP protocol-level error
-// response. Otherwise, the LLM would not be able to see that an error occurred
-// and self-correct.
-//
-// However, any errors in _finding_ the tool, an error indicating that the
-// server does not support tool calls, or any other exceptional conditions,
-// should be reported as an MCP error response.
 type CallToolResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta    Meta       `json:"_meta,omitempty"`
-	Content []*Content `json:"content"`
+	Meta `json:"_meta,omitempty"`
+	// A list of content objects that represent the unstructured result of the tool
+	// call.
+	Content []*ContentBlock `json:"content"`
 	// Whether the tool call ended in an error.
 	//
 	// If not set, this is assumed to be false (the call was successful).
+	//
+	// Any errors that originate from the tool SHOULD be reported inside the result
+	// object, with `isError` set to true, _not_ as an MCP protocol-level error
+	// response. Otherwise, the LLM would not be able to see that an error occurred
+	// and self-correct.
+	//
+	// However, any errors in _finding_ the tool, an error indicating that the
+	// server does not support tool calls, or any other exceptional conditions,
+	// should be reported as an MCP error response.
 	IsError bool `json:"isError,omitempty"`
+	// An optional JSON object that represents the structured result of the tool
+	// call.
+	// TODO(jba,rfindley): should this be any?
+	StructuredContent map[string]any `json:"structuredContent,omitempty"`
 }
-
-func (x *CallToolResult) GetMeta() *Meta { return &x.Meta }
 
 type CallToolResultFor[Out any] struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta    Meta       `json:"_meta,omitempty"`
-	Content []*Content `json:"content"`
+	Meta `json:"_meta,omitempty"`
+	// A list of content objects that represent the unstructured result of the tool
+	// call.
+	Content []*ContentBlock `json:"content"`
 	// Whether the tool call ended in an error.
 	//
 	// If not set, this is assumed to be false (the call was successful).
+	//
+	// Any errors that originate from the tool SHOULD be reported inside the result
+	// object, with `isError` set to true, not as an MCP protocol-level error
+	// response. Otherwise, the LLM would not be able to see that an error occurred
+	// and self-correct.
+	//
+	// However, any errors in finding the tool, an error indicating that the
+	// server does not support tool calls, or any other exceptional conditions,
+	// should be reported as an MCP error response.
 	IsError bool `json:"isError,omitempty"`
+	// An optional JSON object that represents the structured result of the tool
+	// call.
+	StructuredContent Out `json:"structuredContent,omitempty"`
 }
-
-func (x *CallToolResultFor[Out]) GetMeta() *Meta { return &x.Meta }
 
 type CancelledParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An optional string describing the reason for the cancellation. This MAY be
 	// logged or presented to the user.
 	Reason string `json:"reason,omitempty"`
@@ -94,7 +122,8 @@ type CancelledParams struct {
 	RequestID any `json:"requestId"`
 }
 
-func (x *CancelledParams) GetMeta() *Meta { return &x.Meta }
+func (x *CancelledParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *CancelledParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // Capabilities a client may support. Known capabilities are defined here, in
 // this schema, but this is not a closed set: any client can define its own,
@@ -109,12 +138,14 @@ type ClientCapabilities struct {
 	} `json:"roots,omitempty"`
 	// Present if the client supports sampling from an LLM.
 	Sampling *SamplingCapabilities `json:"sampling,omitempty"`
+	// Present if the client supports elicitation from the server.
+	Elicitation *ElicitationCapabilities `json:"elicitation,omitempty"`
 }
 
 type CreateMessageParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// A request to include context from one or more MCP servers (including the
 	// caller), to be attached to the prompt. The client MAY ignore this request.
 	IncludeContext string `json:"includeContext,omitempty"`
@@ -135,7 +166,8 @@ type CreateMessageParams struct {
 	Temperature  float64 `json:"temperature,omitempty"`
 }
 
-func (x *CreateMessageParams) GetMeta() *Meta { return &x.Meta }
+func (x *CreateMessageParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *CreateMessageParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // The client's response to a sampling/create_message request from the server.
 // The client should inform the user before returning the sampled message, to
@@ -144,8 +176,8 @@ func (x *CreateMessageParams) GetMeta() *Meta { return &x.Meta }
 type CreateMessageResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta    Meta     `json:"_meta,omitempty"`
-	Content *Content `json:"content"`
+	Meta    `json:"_meta,omitempty"`
+	Content any `json:"content"`
 	// The name of the model that generated the message.
 	Model string `json:"model"`
 	Role  Role   `json:"role"`
@@ -153,36 +185,33 @@ type CreateMessageResult struct {
 	StopReason string `json:"stopReason,omitempty"`
 }
 
-func (x *CreateMessageResult) GetMeta() *Meta { return &x.Meta }
-
 type GetPromptParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// Arguments to use for templating the prompt.
 	Arguments map[string]string `json:"arguments,omitempty"`
 	// The name of the prompt or prompt template.
 	Name string `json:"name"`
 }
 
-func (x *GetPromptParams) GetMeta() *Meta { return &x.Meta }
+func (x *GetPromptParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *GetPromptParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // The server's response to a prompts/get request from the client.
 type GetPromptResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An optional description for the prompt.
 	Description string           `json:"description,omitempty"`
 	Messages    []*PromptMessage `json:"messages"`
 }
 
-func (x *GetPromptResult) GetMeta() *Meta { return &x.Meta }
-
 type InitializeParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta         Meta                `json:"_meta,omitempty"`
+	Meta         `json:"_meta,omitempty"`
 	Capabilities *ClientCapabilities `json:"capabilities"`
 	ClientInfo   *implementation     `json:"clientInfo"`
 	// The latest version of the Model Context Protocol that the client supports.
@@ -190,14 +219,15 @@ type InitializeParams struct {
 	ProtocolVersion string `json:"protocolVersion"`
 }
 
-func (x *InitializeParams) GetMeta() *Meta { return &x.Meta }
+func (x *InitializeParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *InitializeParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // After receiving an initialize request from the client, the server sends this
 // response.
 type InitializeResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta         Meta                `json:"_meta,omitempty"`
+	Meta         `json:"_meta,omitempty"`
 	Capabilities *serverCapabilities `json:"capabilities"`
 	// Instructions describing how to use the server and its features.
 	//
@@ -212,101 +242,101 @@ type InitializeResult struct {
 	ServerInfo      *implementation `json:"serverInfo"`
 }
 
-func (x *InitializeResult) GetMeta() *Meta { return &x.Meta }
-
 type InitializedParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *InitializedParams) GetMeta() *Meta { return &x.Meta }
+func (x *InitializedParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *InitializedParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 type ListPromptsParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the current pagination position. If provided,
 	// the server should return results starting after this cursor.
 	Cursor string `json:"cursor,omitempty"`
 }
 
-func (x *ListPromptsParams) GetMeta() *Meta     { return &x.Meta }
-func (x *ListPromptsParams) cursorPtr() *string { return &x.Cursor }
+func (x *ListPromptsParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ListPromptsParams) SetProgressToken(t any) { setProgressToken(x, t) }
+func (x *ListPromptsParams) cursorPtr() *string     { return &x.Cursor }
 
 // The server's response to a prompts/list request from the client.
 type ListPromptsResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the pagination position after the last returned
 	// result. If present, there may be more results available.
 	NextCursor string    `json:"nextCursor,omitempty"`
 	Prompts    []*Prompt `json:"prompts"`
 }
 
-func (x *ListPromptsResult) GetMeta() *Meta         { return &x.Meta }
 func (x *ListPromptsResult) nextCursorPtr() *string { return &x.NextCursor }
 
 type ListResourceTemplatesParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the current pagination position. If provided,
 	// the server should return results starting after this cursor.
 	Cursor string `json:"cursor,omitempty"`
 }
 
-func (x *ListResourceTemplatesParams) GetMeta() *Meta     { return &x.Meta }
-func (x *ListResourceTemplatesParams) cursorPtr() *string { return &x.Cursor }
+func (x *ListResourceTemplatesParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ListResourceTemplatesParams) SetProgressToken(t any) { setProgressToken(x, t) }
+func (x *ListResourceTemplatesParams) cursorPtr() *string     { return &x.Cursor }
 
 // The server's response to a resources/templates/list request from the client.
 type ListResourceTemplatesResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the pagination position after the last returned
 	// result. If present, there may be more results available.
 	NextCursor        string              `json:"nextCursor,omitempty"`
 	ResourceTemplates []*ResourceTemplate `json:"resourceTemplates"`
 }
 
-func (x *ListResourceTemplatesResult) GetMeta() *Meta         { return &x.Meta }
 func (x *ListResourceTemplatesResult) nextCursorPtr() *string { return &x.NextCursor }
 
 type ListResourcesParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the current pagination position. If provided,
 	// the server should return results starting after this cursor.
 	Cursor string `json:"cursor,omitempty"`
 }
 
-func (x *ListResourcesParams) GetMeta() *Meta     { return &x.Meta }
-func (x *ListResourcesParams) cursorPtr() *string { return &x.Cursor }
+func (x *ListResourcesParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ListResourcesParams) SetProgressToken(t any) { setProgressToken(x, t) }
+func (x *ListResourcesParams) cursorPtr() *string     { return &x.Cursor }
 
 // The server's response to a resources/list request from the client.
 type ListResourcesResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the pagination position after the last returned
 	// result. If present, there may be more results available.
 	NextCursor string      `json:"nextCursor,omitempty"`
 	Resources  []*Resource `json:"resources"`
 }
 
-func (x *ListResourcesResult) GetMeta() *Meta         { return &x.Meta }
 func (x *ListResourcesResult) nextCursorPtr() *string { return &x.NextCursor }
 
 type ListRootsParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *ListRootsParams) GetMeta() *Meta { return &x.Meta }
+func (x *ListRootsParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ListRootsParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // The client's response to a roots/list request from the server. This result
 // contains an array of Root objects, each representing a root directory or file
@@ -314,36 +344,34 @@ func (x *ListRootsParams) GetMeta() *Meta { return &x.Meta }
 type ListRootsResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta  Meta    `json:"_meta,omitempty"`
+	Meta  `json:"_meta,omitempty"`
 	Roots []*Root `json:"roots"`
 }
-
-func (x *ListRootsResult) GetMeta() *Meta { return &x.Meta }
 
 type ListToolsParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the current pagination position. If provided,
 	// the server should return results starting after this cursor.
 	Cursor string `json:"cursor,omitempty"`
 }
 
-func (x *ListToolsParams) GetMeta() *Meta     { return &x.Meta }
-func (x *ListToolsParams) cursorPtr() *string { return &x.Cursor }
+func (x *ListToolsParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ListToolsParams) SetProgressToken(t any) { setProgressToken(x, t) }
+func (x *ListToolsParams) cursorPtr() *string     { return &x.Cursor }
 
 // The server's response to a tools/list request from the client.
 type ListToolsResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An opaque token representing the pagination position after the last returned
 	// result. If present, there may be more results available.
 	NextCursor string  `json:"nextCursor,omitempty"`
 	Tools      []*Tool `json:"tools"`
 }
 
-func (x *ListToolsResult) GetMeta() *Meta         { return &x.Meta }
 func (x *ListToolsResult) nextCursorPtr() *string { return &x.NextCursor }
 
 // The severity of a log message.
@@ -355,7 +383,7 @@ type LoggingLevel string
 type LoggingMessageParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// The data to be logged, such as a string message or an object. Any JSON
 	// serializable type is allowed here.
 	Data any `json:"data"`
@@ -365,7 +393,8 @@ type LoggingMessageParams struct {
 	Logger string `json:"logger,omitempty"`
 }
 
-func (x *LoggingMessageParams) GetMeta() *Meta { return &x.Meta }
+func (x *LoggingMessageParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *LoggingMessageParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // Hints to use for model selection.
 //
@@ -422,15 +451,16 @@ type ModelPreferences struct {
 type PingParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *PingParams) GetMeta() *Meta { return &x.Meta }
+func (x *PingParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *PingParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 type ProgressNotificationParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// An optional message describing the current progress.
 	Message string `json:"message,omitempty"`
 	// The progress thus far. This should increase every time progress is made, even
@@ -443,24 +473,33 @@ type ProgressNotificationParams struct {
 	Total float64 `json:"total,omitempty"`
 }
 
-func (x *ProgressNotificationParams) GetMeta() *Meta { return &x.Meta }
-
 // A prompt or prompt template that the server offers.
 type Prompt struct {
+	// See [specification/2025-06-18/basic/index#general-fields] for notes on _meta
+	// usage.
+	Meta `json:"_meta,omitempty"`
 	// A list of arguments to use for templating the prompt.
 	Arguments []*PromptArgument `json:"arguments,omitempty"`
 	// An optional description of what this prompt provides
 	Description string `json:"description,omitempty"`
-	// The name of the prompt or prompt template.
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
 	Name string `json:"name"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	Title string `json:"title,omitempty"`
 }
 
 // Describes an argument that a prompt can accept.
 type PromptArgument struct {
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
+	Name string `json:"name"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	Title string `json:"title,omitempty"`
 	// A human-readable description of the argument.
 	Description string `json:"description,omitempty"`
-	// The name of the argument.
-	Name string `json:"name"`
 	// Whether this argument must be provided.
 	Required bool `json:"required,omitempty"`
 }
@@ -468,43 +507,46 @@ type PromptArgument struct {
 type PromptListChangedParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *PromptListChangedParams) GetMeta() *Meta { return &x.Meta }
+func (x *PromptListChangedParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *PromptListChangedParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // Describes a message returned as part of a prompt.
 //
 // This is similar to `SamplingMessage`, but also supports the embedding of
 // resources from the MCP server.
 type PromptMessage struct {
-	Content *Content `json:"content"`
-	Role    Role     `json:"role"`
+	Content *ContentBlock `json:"content"`
+	Role    Role          `json:"role"`
 }
 
 type ReadResourceParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// The URI of the resource to read. The URI can use any protocol; it is up to
 	// the server how to interpret it.
 	URI string `json:"uri"`
 }
 
-func (x *ReadResourceParams) GetMeta() *Meta { return &x.Meta }
+func (x *ReadResourceParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ReadResourceParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // The server's response to a resources/read request from the client.
 type ReadResourceResult struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta     Meta                `json:"_meta,omitempty"`
+	Meta     `json:"_meta,omitempty"`
 	Contents []*ResourceContents `json:"contents"`
 }
 
-func (x *ReadResourceResult) GetMeta() *Meta { return &x.Meta }
-
 // A known resource that the server is capable of reading.
 type Resource struct {
+	// See [specification/2025-06-18/basic/index#general-fields] for notes on _meta
+	// usage.
+	Meta `json:"_meta,omitempty"`
 	// Optional annotations for the client.
 	Annotations *Annotations `json:"annotations,omitempty"`
 	// A description of what this resource represents.
@@ -514,9 +556,8 @@ type Resource struct {
 	Description string `json:"description,omitempty"`
 	// The MIME type of this resource, if known.
 	MIMEType string `json:"mimeType,omitempty"`
-	// A human-readable name for this resource.
-	//
-	// This can be used by clients to populate UI elements.
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
 	Name string `json:"name"`
 	// The size of the raw resource content, in bytes (i.e., before base64 encoding
 	// or any tokenization), if known.
@@ -524,6 +565,13 @@ type Resource struct {
 	// This can be used by Hosts to display file sizes and estimate context window
 	// usage.
 	Size int64 `json:"size,omitempty"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	//
+	// If not provided, the name should be used for display (except for Tool, where
+	// `annotations.title` should be given precedence over using `name`, if
+	// present).
+	Title string `json:"title,omitempty"`
 	// The URI of this resource.
 	URI string `json:"uri"`
 }
@@ -531,13 +579,17 @@ type Resource struct {
 type ResourceListChangedParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *ResourceListChangedParams) GetMeta() *Meta { return &x.Meta }
+func (x *ResourceListChangedParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ResourceListChangedParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // A template description for resources available on the server.
 type ResourceTemplate struct {
+	// See [specification/2025-06-18/basic/index#general-fields] for notes on _meta
+	// usage.
+	Meta `json:"_meta,omitempty"`
 	// Optional annotations for the client.
 	Annotations *Annotations `json:"annotations,omitempty"`
 	// A description of what this template is for.
@@ -548,10 +600,16 @@ type ResourceTemplate struct {
 	// The MIME type for all resources that match this template. This should only be
 	// included if all resources matching this template have the same type.
 	MIMEType string `json:"mimeType,omitempty"`
-	// A human-readable name for the type of resource this template refers to.
-	//
-	// This can be used by clients to populate UI elements.
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
 	Name string `json:"name"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	//
+	// If not provided, the name should be used for display (except for Tool, where
+	// `annotations.title` should be given precedence over using `name`, if
+	// present).
+	Title string `json:"title,omitempty"`
 	// A URI template (according to RFC 6570) that can be used to construct resource
 	// URIs.
 	URITemplate string `json:"uriTemplate"`
@@ -562,6 +620,9 @@ type Role string
 
 // Represents a root directory or file that the server can operate on.
 type Root struct {
+	// See [specification/2025-06-18/basic/index#general-fields] for notes on _meta
+	// usage.
+	Meta `json:"_meta,omitempty"`
 	// An optional name for the root. This can be used to provide a human-readable
 	// identifier for the root, which may be useful for display purposes or for
 	// referencing the root in other parts of the application.
@@ -575,35 +636,45 @@ type Root struct {
 type RootsListChangedParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *RootsListChangedParams) GetMeta() *Meta { return &x.Meta }
+func (x *RootsListChangedParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *RootsListChangedParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
-// Present if the client supports sampling from an LLM.
+// SamplingCapabilities describes the capabilities for sampling.
 type SamplingCapabilities struct{}
+
+// ElicitationCapabilities describes the capabilities for elicitation.
+type ElicitationCapabilities struct{}
 
 // Describes a message issued to or received from an LLM API.
 type SamplingMessage struct {
-	Content *Content `json:"content"`
-	Role    Role     `json:"role"`
+	Content any  `json:"content"`
+	Role    Role `json:"role"`
 }
 
 type SetLevelParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 	// The level of logging that the client wants to receive from the server. The
 	// server should send all logs at this level and higher (i.e., more severe) to
 	// the client as notifications/message.
 	Level LoggingLevel `json:"level"`
 }
 
-func (x *SetLevelParams) GetMeta() *Meta { return &x.Meta }
+func (x *SetLevelParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *SetLevelParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
 // Definition for a tool the client can call.
 type Tool struct {
+	// See [specification/2025-06-18/basic/index#general-fields] for notes on _meta
+	// usage.
+	Meta `json:"_meta,omitempty"`
 	// Optional additional tool information.
+	//
+	// Display name precedence order is: title, annotations.title, then name.
 	Annotations *ToolAnnotations `json:"annotations,omitempty"`
 	// A human-readable description of the tool.
 	//
@@ -612,8 +683,17 @@ type Tool struct {
 	Description string `json:"description,omitempty"`
 	// A JSON Schema object defining the expected parameters for the tool.
 	InputSchema *jsonschema.Schema `json:"inputSchema"`
-	// The name of the tool.
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
 	Name string `json:"name"`
+	// An optional JSON Schema object defining the structure of the tool's output
+	// returned in the structuredContent field of a CallToolResult.
+	OutputSchema *jsonschema.Schema `json:"outputSchema,omitempty"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	// If not provided, Annotations.Title should be used for display if present,
+	// otherwise Name.
+	Title string `json:"title,omitempty"`
 }
 
 // Additional properties describing a Tool to clients.
@@ -656,14 +736,25 @@ type ToolAnnotations struct {
 type ToolListChangedParams struct {
 	// This property is reserved by the protocol to allow clients and servers to
 	// attach additional metadata to their responses.
-	Meta Meta `json:"_meta,omitempty"`
+	Meta `json:"_meta,omitempty"`
 }
 
-func (x *ToolListChangedParams) GetMeta() *Meta { return &x.Meta }
+func (x *ToolListChangedParams) GetProgressToken() any  { return getProgressToken(x) }
+func (x *ToolListChangedParams) SetProgressToken(t any) { setProgressToken(x, t) }
 
-// Describes the name and version of an MCP implementation.
+// TODO(jba): add CompleteRequest and related types.
+
+// TODO(jba): add ElicitRequest and related types.
+
+// Describes the name and version of an MCP implementation, with an optional
+// title for UI representation.
 type implementation struct {
-	Name    string `json:"name"`
+	// Intended for programmatic or logical use, but used as a display name in past
+	// specs or fallback (if title isn't present).
+	Name string `json:"name"`
+	// Intended for UI and end-user contexts — optimized to be human-readable and
+	// easily understood, even by those unfamiliar with domain-specific terminology.
+	Title   string `json:"title,omitempty"`
 	Version string `json:"version"`
 }
 
@@ -713,6 +804,7 @@ const (
 	notificationCancelled           = "notifications/cancelled"
 	methodComplete                  = "completion/complete"
 	methodCreateMessage             = "sampling/createMessage"
+	methodElicit                    = "elicitation/create"
 	methodGetPrompt                 = "prompts/get"
 	methodInitialize                = "initialize"
 	notificationInitialized         = "notifications/initialized"

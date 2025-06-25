@@ -242,51 +242,62 @@ func notifySessions[S Session](sessions []S, method string, params Params) {
 	}
 }
 
-type Meta struct {
-	Data map[string]any `json:",omitempty"`
-	// For params, the progress token can be nil, a string or an integer.
-	// It should be nil for results.
-	ProgressToken any `json:"progressToken,omitempty"`
+type Meta map[string]any
+
+func (m Meta) GetMeta() map[string]any   { return m }
+func (m *Meta) SetMeta(x map[string]any) { *m = x }
+
+const progressTokenKey = "progressToken"
+
+func getProgressToken(p Params) any {
+	return p.GetMeta()[progressTokenKey]
 }
 
-type metaSansMethods Meta // avoid infinite recursion during marshaling
-
-func (m Meta) MarshalJSON() ([]byte, error) {
-	if p := m.ProgressToken; p != nil {
-		if k := reflect.ValueOf(p).Kind(); k != reflect.Int && k != reflect.String {
-			return nil, fmt.Errorf("bad type %T for Meta.ProgressToken: must be int or string", p)
-		}
+func setProgressToken(p Params, pt any) {
+	switch pt.(type) {
+	// Support int32 and int64 for atomic.IntNN.
+	case int, int32, int64, string:
+	default:
+		panic(fmt.Sprintf("progress token %v is of type %[1]T, not int or string", pt))
 	}
-	// If ProgressToken is nil, accept Data["progressToken"]. We can't call marshalStructWithMap
-	// in that case because it will complain about duplicate fields. (We'd have to
-	// make it much smarter to avoid that; not worth it.)
-	if m.ProgressToken == nil && len(m.Data) > 0 {
-		return json.Marshal(m.Data)
+	m := p.GetMeta()
+	if m == nil {
+		m = map[string]any{}
 	}
-	return marshalStructWithMap((*metaSansMethods)(&m), "Data")
-}
-
-func (m *Meta) UnmarshalJSON(data []byte) error {
-	return unmarshalStructWithMap(data, (*metaSansMethods)(m), "Data")
+	m[progressTokenKey] = pt
 }
 
 // Params is a parameter (input) type for an MCP call or notification.
 type Params interface {
-	// Returns a pointer to the params's Meta field.
-	GetMeta() *Meta
+	GetMeta() map[string]any
+	SetMeta(map[string]any)
+}
+
+// RequestParams is a parameter (input) type for an MCP request.
+type RequestParams interface {
+	Params
+
+	// GetProgressToken returns the progress token from the params' Meta field, or nil
+	// if there is none.
+	GetProgressToken() any
+
+	// SetProgressToken sets the given progress token into the params' Meta field.
+	// It panics if its argument is not an int or a string.
+	SetProgressToken(any)
 }
 
 // Result is a result of an MCP call.
 type Result interface {
-	// Returns a pointer to the result's Meta field.
-	GetMeta() *Meta
+	GetMeta() map[string]any
+	SetMeta(map[string]any)
 }
 
 // emptyResult is returned by methods that have no result, like ping.
 // Those methods cannot return nil, because jsonrpc2 cannot handle nils.
 type emptyResult struct{}
 
-func (*emptyResult) GetMeta() *Meta { panic("should never be called") }
+func (*emptyResult) GetMeta() map[string]any { panic("should never be called") }
+func (*emptyResult) SetMeta(map[string]any)  { panic("should never be called") }
 
 type listParams interface {
 	// Returns a pointer to the param's Cursor field.

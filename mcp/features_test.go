@@ -20,7 +20,7 @@ type SayHiParams struct {
 
 func SayHi(ctx context.Context, cc *ServerSession, params *CallToolParamsFor[SayHiParams]) (*CallToolResultFor[any], error) {
 	return &CallToolResultFor[any]{
-		Content: []*Content{
+		Content: []*ContentBlock{
 			NewTextContent("Hi " + params.Name),
 		},
 	}, nil

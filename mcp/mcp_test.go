@@ -34,7 +34,7 @@ func sayHi(ctx context.Context, ss *ServerSession, params *CallToolParamsFor[hiP
 	if err := ss.Ping(ctx, nil); err != nil {
 		return nil, fmt.Errorf("ping failed: %v", err)
 	}
-	return &CallToolResultFor[any]{Content: []*Content{NewTextContent("hi " + params.Arguments.Name)}}, nil
+	return &CallToolResultFor[any]{Content: []*ContentBlock{NewTextContent("hi " + params.Arguments.Name)}}, nil
 }
 
 func TestEndToEnd(t *testing.T) {
@@ -195,7 +195,7 @@ func TestEndToEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 		wantHi := &CallToolResult{
-			Content: []*Content{{Type: "text", Text: "hi user"}},
+			Content: []*ContentBlock{{Type: "text", Text: "hi user"}},
 		}
 		if diff := cmp.Diff(wantHi, gotHi); diff != "" {
 			t.Errorf("tools/call 'greet' mismatch (-want +got):\n%s", diff)
@@ -212,7 +212,7 @@ func TestEndToEnd(t *testing.T) {
 		}
 		wantFail := &CallToolResult{
 			IsError: true,
-			Content: []*Content{{Type: "text", Text: errTestFailure.Error()}},
+			Content: []*ContentBlock{{Type: "text", Text: errTestFailure.Error()}},
 		}
 		if diff := cmp.Diff(wantFail, gotFail); diff != "" {
 			t.Errorf("tools/call 'fail' mismatch (-want +got):\n%s", diff)

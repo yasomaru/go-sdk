@@ -20,7 +20,7 @@ type AddParams struct {
 
 func Add(ctx context.Context, cc *mcp.ServerSession, params *mcp.CallToolParamsFor[AddParams]) (*mcp.CallToolResultFor[any], error) {
 	return &mcp.CallToolResultFor[any]{
-		Content: []*mcp.Content{mcp.NewTextContent(fmt.Sprintf("%d", params.Arguments.X+params.Arguments.Y))},
+		Content: []*mcp.ContentBlock{mcp.NewTextContent(fmt.Sprintf("%d", params.Arguments.X+params.Arguments.Y))},
 	}, nil
 }
 

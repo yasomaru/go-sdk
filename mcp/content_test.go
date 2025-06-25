@@ -14,7 +14,7 @@ import (
 
 func TestContent(t *testing.T) {
 	tests := []struct {
-		in   *mcp.Content
+		in   *mcp.ContentBlock
 		want string // json serialization
 	}{
 		{mcp.NewTextContent("hello"), `{"type":"text","text":"hello"}`},
@@ -27,13 +27,13 @@ func TestContent(t *testing.T) {
 			`{"type":"audio","mimeType":"audio/wav","data":"YTFiMmMz"}`,
 		},
 		{
-			mcp.NewResourceContent(
+			mcp.NewResourceContents(
 				mcp.NewTextResourceContents("file://foo", "text", "abc"),
 			),
 			`{"type":"resource","resource":{"uri":"file://foo","mimeType":"text","text":"abc"}}`,
 		},
 		{
-			mcp.NewResourceContent(
+			mcp.NewResourceContents(
 				mcp.NewBlobResourceContents("file://foo", "image/png", []byte("a1b2c3")),
 			),
 			`{"type":"resource","resource":{"uri":"file://foo","mimeType":"image/png","blob":"YTFiMmMz"}}`,
@@ -48,7 +48,7 @@ func TestContent(t *testing.T) {
 		if diff := cmp.Diff(test.want, string(got)); diff != "" {
 			t.Errorf("json.Marshal(%v) mismatch (-want +got):\n%s", test.in, diff)
 		}
-		var out *mcp.Content
+		var out *mcp.ContentBlock
 		if err := json.Unmarshal(got, &out); err != nil {
 			t.Fatal(err)
 		}
