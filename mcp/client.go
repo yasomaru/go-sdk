@@ -142,6 +142,18 @@ type ClientSession struct {
 	client           *Client
 	initializeResult *InitializeResult
 	keepaliveCancel  context.CancelFunc
+	mcpConn          Connection
+}
+
+func (cs *ClientSession) setConn(c Connection) {
+	cs.mcpConn = c
+}
+
+func (cs *ClientSession) ID() string {
+	if cs.mcpConn == nil {
+		return ""
+	}
+	return cs.mcpConn.SessionID()
 }
 
 // Close performs a graceful close of the connection, preventing new requests
