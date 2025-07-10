@@ -204,6 +204,26 @@ func (s *Server) RemoveResourceTemplates(uriTemplates ...string) {
 		func() bool { return s.resourceTemplates.remove(uriTemplates...) })
 }
 
+func (s *Server) capabilities() *serverCapabilities {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	caps := &serverCapabilities{
+		Completions: &completionCapabilities{},
+		Logging:     &loggingCapabilities{},
+	}
+	if s.tools.len() > 0 {
+		caps.Tools = &toolCapabilities{ListChanged: true}
+	}
+	if s.prompts.len() > 0 {
+		caps.Prompts = &promptCapabilities{ListChanged: true}
+	}
+	if s.resources.len() > 0 || s.resourceTemplates.len() > 0 {
+		caps.Resources = &resourceCapabilities{ListChanged: true}
+	}
+	return caps
+}
+
 func (s *Server) complete(ctx context.Context, ss *ServerSession, params *CompleteParams) (Result, error) {
 	if s.opts.CompletionHandler == nil {
 		return nil, jsonrpc2.ErrMethodNotFound
@@ -407,6 +427,11 @@ func fileResourceHandler(dir string) ResourceHandler {
 //
 // Run blocks until the client terminates the connection or the provided
 // context is cancelled. If the context is cancelled, Run closes the connection.
+//
+// If tools have been added to the server before this call, then the server will
+// advertise the capability for tools, including the ability to send list-changed notifications.
+// If no tools have been added, the server will not have the tool capability.
+// The same goes for other features like prompts and resources.
 func (s *Server) Run(ctx context.Context, t Transport) error {
 	ss, err := s.Connect(ctx, t)
 	if err != nil {
@@ -659,20 +684,8 @@ func (ss *ServerSession) initialize(ctx context.Context, params *InitializeParam
 		// TODO(rfindley): alter behavior when falling back to an older version:
 		// reject unsupported features.
 		ProtocolVersion: version,
-		Capabilities: &serverCapabilities{
-			Completions: &completionCapabilities{},
-			Prompts: &promptCapabilities{
-				ListChanged: true,
-			},
-			Tools: &toolCapabilities{
-				ListChanged: true,
-			},
-			Resources: &resourceCapabilities{
-				ListChanged: true,
-			},
-			Logging: &loggingCapabilities{},
-		},
-		Instructions: ss.server.opts.Instructions,
+		Capabilities:    ss.server.capabilities(),
+		Instructions:    ss.server.opts.Instructions,
 		ServerInfo: &implementation{
 			Name:    ss.server.name,
 			Version: ss.server.version,
