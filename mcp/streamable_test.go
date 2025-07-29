@@ -158,7 +158,8 @@ func TestClientReplay(t *testing.T) {
 	client := NewClient(testImpl, &ClientOptions{
 		ProgressNotificationHandler: func(ctx context.Context, cc *ClientSession, params *ProgressNotificationParams) {
 			notifications <- params.Message
-		}})
+		},
+	})
 	clientSession, err := client.Connect(ctx, NewStreamableClientTransport(proxy.URL, nil))
 	if err != nil {
 		t.Fatalf("client.Connect() failed: %v", err)
@@ -676,6 +677,51 @@ func mustMarshal(t *testing.T, v any) json.RawMessage {
 		t.Fatal(err)
 	}
 	return data
+}
+
+func TestStreamableClientTransportApplicationJSON(t *testing.T) {
+	// Test handling of application/json responses.
+	ctx := context.Background()
+	resp := func(id int64, result any, err error) *jsonrpc.Response {
+		return &jsonrpc.Response{
+			ID:     jsonrpc2.Int64ID(id),
+			Result: mustMarshal(t, result),
+			Error:  err,
+		}
+	}
+	initResult := &InitializeResult{
+		Capabilities: &serverCapabilities{
+			Completions: &completionCapabilities{},
+			Logging:     &loggingCapabilities{},
+			Tools:       &toolCapabilities{ListChanged: true},
+		},
+		ProtocolVersion: latestProtocolVersion,
+		ServerInfo:      &Implementation{Name: "testServer", Version: "v1.0.0"},
+	}
+	initResp := resp(1, initResult, nil)
+
+	serverHandler := func(w http.ResponseWriter, r *http.Request) {
+		data, err := jsonrpc2.EncodeMessage(initResp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	}
+
+	httpServer := httptest.NewServer(http.HandlerFunc(serverHandler))
+	defer httpServer.Close()
+
+	transport := NewStreamableClientTransport(httpServer.URL, nil)
+	client := NewClient(testImpl, nil)
+	session, err := client.Connect(ctx, transport)
+	if err != nil {
+		t.Fatalf("client.Connect() failed: %v", err)
+	}
+	defer session.Close()
+	if diff := cmp.Diff(initResult, session.initializeResult); diff != "" {
+		t.Errorf("mismatch (-want, +got):\n%s", diff)
+	}
 }
 
 func TestEventID(t *testing.T) {
