@@ -315,8 +315,11 @@ func (s *Server) getPrompt(ctx context.Context, req *ServerRequest[*GetPromptPar
 	prompt, ok := s.prompts.get(req.Params.Name)
 	s.mu.Unlock()
 	if !ok {
-		// TODO: surface the error code over the wire, instead of flattening it into the string.
-		return nil, fmt.Errorf("%s: unknown prompt %q", jsonrpc2.ErrInvalidParams, req.Params.Name)
+		// Return a proper JSON-RPC error with the correct error code
+		return nil, &jsonrpc2.WireError{
+			Code:    -32602, // ErrInvalidParams code
+			Message: fmt.Sprintf("unknown prompt %q", req.Params.Name),
+		}
 	}
 	return prompt.handler(ctx, req.Session, req.Params)
 }
@@ -340,7 +343,10 @@ func (s *Server) callTool(ctx context.Context, req *ServerRequest[*CallToolParam
 	st, ok := s.tools.get(req.Params.Name)
 	s.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("%s: unknown tool %q", jsonrpc2.ErrInvalidParams, req.Params.Name)
+		return nil, &jsonrpc2.WireError{
+			Code:    -32602, // ErrInvalidParams code
+			Message: fmt.Sprintf("unknown tool %q", req.Params.Name),
+		}
 	}
 	return st.handler(ctx, req)
 }
