@@ -138,34 +138,41 @@ func TestUnmarshalSchema(t *testing.T) {
 }
 
 func TestToolErrorHandling(t *testing.T) {
+	// Construct server and add both tools at the top level
+	server := NewServer(testImpl, nil)
+
+	// Create a tool that returns a structured error
+	structuredErrorHandler := func(ctx context.Context, req *ServerRequest[*CallToolParamsFor[map[string]any]]) (*CallToolResultFor[any], error) {
+		return nil, &jsonrpc2.WireError{
+			Code:    CodeInvalidParams,
+			Message: "internal server error",
+		}
+	}
+
+	// Create a tool that returns a regular error
+	regularErrorHandler := func(ctx context.Context, req *ServerRequest[*CallToolParamsFor[map[string]any]]) (*CallToolResultFor[any], error) {
+		return nil, fmt.Errorf("tool execution failed")
+	}
+
+	AddTool(server, &Tool{Name: "error_tool", Description: "returns structured error"}, structuredErrorHandler)
+	AddTool(server, &Tool{Name: "regular_error_tool", Description: "returns regular error"}, regularErrorHandler)
+
+	// Connect server and client once
+	ct, st := NewInMemoryTransports()
+	_, err := server.Connect(context.Background(), st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := NewClient(testImpl, nil)
+	cs, err := client.Connect(context.Background(), ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+
 	// Test that structured JSON-RPC errors are returned directly
 	t.Run("structured_error", func(t *testing.T) {
-		server := NewServer(testImpl, nil)
-
-		// Create a tool that returns a structured error
-		structuredErrorHandler := func(ctx context.Context, req *ServerRequest[*CallToolParamsFor[map[string]any]]) (*CallToolResultFor[any], error) {
-			return nil, &jsonrpc2.WireError{
-				Code:    -32603, // ErrInternal
-				Message: "internal server error",
-			}
-		}
-
-		AddTool(server, &Tool{Name: "error_tool", Description: "returns structured error"}, structuredErrorHandler)
-
-		// Connect and test
-		ct, st := NewInMemoryTransports()
-		_, err := server.Connect(context.Background(), st, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		client := NewClient(testImpl, nil)
-		cs, err := client.Connect(context.Background(), ct, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer cs.Close()
-
 		// Call the tool
 		_, err = cs.CallTool(context.Background(), &CallToolParams{
 			Name:      "error_tool",
@@ -179,39 +186,16 @@ func TestToolErrorHandling(t *testing.T) {
 
 		var wireErr *jsonrpc2.WireError
 		if !errors.As(err, &wireErr) {
-			t.Fatalf("expected WireError, got %T: %v", err, err)
+			t.Fatalf("expected WireError, got %[1]T: %[1]v", err)
 		}
 
-		if wireErr.Code != -32603 {
-			t.Errorf("expected error code -32603, got %d", wireErr.Code)
+		if wireErr.Code != CodeInvalidParams {
+			t.Errorf("expected error code %d, got %d", CodeInvalidParams, wireErr.Code)
 		}
 	})
 
 	// Test that regular errors are embedded in tool results
 	t.Run("regular_error", func(t *testing.T) {
-		server := NewServer(testImpl, nil)
-
-		// Create a tool that returns a regular error
-		regularErrorHandler := func(ctx context.Context, req *ServerRequest[*CallToolParamsFor[map[string]any]]) (*CallToolResultFor[any], error) {
-			return nil, fmt.Errorf("tool execution failed")
-		}
-
-		AddTool(server, &Tool{Name: "regular_error_tool", Description: "returns regular error"}, regularErrorHandler)
-
-		// Connect and test
-		ct, st := NewInMemoryTransports()
-		_, err := server.Connect(context.Background(), st, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		client := NewClient(testImpl, nil)
-		cs, err := client.Connect(context.Background(), ct, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer cs.Close()
-
 		// Call the tool
 		result, err := cs.CallTool(context.Background(), &CallToolParams{
 			Name:      "regular_error_tool",

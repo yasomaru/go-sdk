@@ -317,7 +317,7 @@ func (s *Server) getPrompt(ctx context.Context, req *ServerRequest[*GetPromptPar
 	if !ok {
 		// Return a proper JSON-RPC error with the correct error code
 		return nil, &jsonrpc2.WireError{
-			Code:    -32602, // ErrInvalidParams code
+			Code:    CodeInvalidParams,
 			Message: fmt.Sprintf("unknown prompt %q", req.Params.Name),
 		}
 	}
@@ -344,7 +344,7 @@ func (s *Server) callTool(ctx context.Context, req *ServerRequest[*CallToolParam
 	s.mu.Unlock()
 	if !ok {
 		return nil, &jsonrpc2.WireError{
-			Code:    -32602, // ErrInvalidParams code
+			Code:    CodeInvalidParams,
 			Message: fmt.Sprintf("unknown tool %q", req.Params.Name),
 		}
 	}
