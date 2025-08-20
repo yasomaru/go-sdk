@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
 )
 
 // A ToolHandler handles a call to tools/call.
@@ -70,9 +71,16 @@ func newServerTool[In, Out any](t *Tool, h ToolHandlerFor[In, Out]) (*serverTool
 			Params:  params,
 			Extra:   req.Extra,
 		})
-		// TODO(rfindley): investigate why server errors are embedded in this strange way,
-		// rather than returned as jsonrpc2 server errors.
+		// Handle server errors appropriately:
+		// - If the handler returns a structured error (like jsonrpc2.WireError), return it directly
+		// - If the handler returns a regular error, wrap it in a CallToolResult with IsError=true
+		// - This allows tools to distinguish between protocol errors and tool execution errors
 		if err != nil {
+			// Check if this is already a structured JSON-RPC error
+			if wireErr, ok := err.(*jsonrpc2.WireError); ok {
+				return nil, wireErr
+			}
+			// For regular errors, embed them in the tool result as per MCP spec
 			return &CallToolResult{
 				Content: []Content{&TextContent{Text: err.Error()}},
 				IsError: true,
