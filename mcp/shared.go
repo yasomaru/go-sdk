@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
@@ -126,7 +127,8 @@ func handleReceive[S Session](ctx context.Context, session S, jreq *jsonrpc.Requ
 	}
 
 	mh := session.receivingMethodHandler()
-	req := info.newRequest(session, params)
+	re, _ := jreq.Extra.(*RequestExtra)
+	req := info.newRequest(session, params, re)
 	// mh might be user code, so ensure that it returns the right values for the jsonrpc2 protocol.
 	res, err := mh(ctx, jreq.Method, req)
 	if err != nil {
@@ -173,7 +175,7 @@ type methodInfo struct {
 	// Unmarshal params from the wire into a Params struct.
 	// Used on the receive side.
 	unmarshalParams func(json.RawMessage) (Params, error)
-	newRequest      func(Session, Params) Request
+	newRequest      func(Session, Params, *RequestExtra) Request
 	// Run the code when a call to the method is received.
 	// Used on the receive side.
 	handleMethod MethodHandler
@@ -208,7 +210,7 @@ const (
 
 func newClientMethodInfo[P paramsPtr[T], R Result, T any](d typedClientMethodHandler[P, R], flags methodFlags) methodInfo {
 	mi := newMethodInfo[P, R](flags)
-	mi.newRequest = func(s Session, p Params) Request {
+	mi.newRequest = func(s Session, p Params, _ *RequestExtra) Request {
 		r := &ClientRequest[P]{Session: s.(*ClientSession)}
 		if p != nil {
 			r.Params = p.(P)
@@ -223,19 +225,15 @@ func newClientMethodInfo[P paramsPtr[T], R Result, T any](d typedClientMethodHan
 
 func newServerMethodInfo[P paramsPtr[T], R Result, T any](d typedServerMethodHandler[P, R], flags methodFlags) methodInfo {
 	mi := newMethodInfo[P, R](flags)
-	mi.newRequest = func(s Session, p Params) Request {
-		r := &ServerRequest[P]{Session: s.(*ServerSession)}
+	mi.newRequest = func(s Session, p Params, re *RequestExtra) Request {
+		r := &ServerRequest[P]{Session: s.(*ServerSession), Extra: re}
 		if p != nil {
 			r.Params = p.(P)
 		}
 		return r
 	}
 	mi.handleMethod = MethodHandler(func(ctx context.Context, _ string, req Request) (Result, error) {
-		rf := &ServerRequest[P]{Session: req.GetSession().(*ServerSession)}
-		if req.GetParams() != nil {
-			rf.Params = req.GetParams().(P)
-		}
-		return d(ctx, rf)
+		return d(ctx, req.(*ServerRequest[P]))
 	})
 	return mi
 }
@@ -391,6 +389,13 @@ type ClientRequest[P Params] struct {
 type ServerRequest[P Params] struct {
 	Session *ServerSession
 	Params  P
+	Extra   *RequestExtra
+}
+
+// RequestExtra is extra information included in requests, typically from
+// the transport layer.
+type RequestExtra struct {
+	TokenInfo *auth.TokenInfo // bearer token info (e.g. from OAuth) if any
 }
 
 func (*ClientRequest[P]) isRequest() {}

@@ -68,6 +68,7 @@ func newServerTool[In, Out any](t *Tool, h ToolHandlerFor[In, Out]) (*serverTool
 		res, err := h(ctx, &ServerRequest[*CallToolParamsFor[In]]{
 			Session: req.Session,
 			Params:  params,
+			Extra:   req.Extra,
 		})
 		// TODO(rfindley): investigate why server errors are embedded in this strange way,
 		// rather than returned as jsonrpc2 server errors.
