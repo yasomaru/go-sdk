@@ -126,7 +126,7 @@ func (x *CancelledParams) SetProgressToken(t any) { setProgressToken(x, t) }
 // additional capabilities.
 type ClientCapabilities struct {
 	// Experimental, non-standard capabilities that the client supports.
-	Experimental map[string]struct{} `json:"experimental,omitempty"`
+	Experimental map[string]any `json:"experimental,omitempty"`
 	// Present if the client supports listing roots.
 	Roots struct {
 		// Whether the client supports notifications for changes to the roots list.
@@ -242,7 +242,7 @@ type CreateMessageParams struct {
 	Messages  []*SamplingMessage `json:"messages"`
 	// Optional metadata to pass through to the LLM provider. The format of this
 	// metadata is provider-specific.
-	Metadata struct{} `json:"metadata,omitempty"`
+	Metadata any `json:"metadata,omitempty"`
 	// The server's preferences for which model to select. The client may ignore
 	// these preferences.
 	ModelPreferences *ModelPreferences `json:"modelPreferences,omitempty"`
@@ -997,7 +997,7 @@ type ServerCapabilities struct {
 	// Present if the server supports argument autocompletion suggestions.
 	Completions *CompletionCapabilities `json:"completions,omitempty"`
 	// Experimental, non-standard capabilities that the server supports.
-	Experimental map[string]struct{} `json:"experimental,omitempty"`
+	Experimental map[string]any `json:"experimental,omitempty"`
 	// Present if the server supports sending log messages to the client.
 	Logging *LoggingCapabilities `json:"logging,omitempty"`
 	// Present if the server offers any prompt templates.
