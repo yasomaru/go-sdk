@@ -122,7 +122,8 @@ func NewInMemoryTransports() (*InMemoryTransport, *InMemoryTransport) {
 }
 
 type binder[T handler, State any] interface {
-	bind(Connection, *jsonrpc2.Connection, State) T
+	// TODO(rfindley): the bind API has gotten too complicated. Simplify.
+	bind(Connection, *jsonrpc2.Connection, State, func()) T
 	disconnect(T)
 }
 
@@ -130,7 +131,7 @@ type handler interface {
 	handle(ctx context.Context, req *jsonrpc.Request) (any, error)
 }
 
-func connect[H handler, State any](ctx context.Context, t Transport, b binder[H, State], s State) (H, error) {
+func connect[H handler, State any](ctx context.Context, t Transport, b binder[H, State], s State, onClose func()) (H, error) {
 	var zero H
 	mcpConn, err := t.Connect(ctx)
 	if err != nil {
@@ -143,7 +144,7 @@ func connect[H handler, State any](ctx context.Context, t Transport, b binder[H,
 		preempter canceller
 	)
 	bind := func(conn *jsonrpc2.Connection) jsonrpc2.Handler {
-		h = b.bind(mcpConn, conn, s)
+		h = b.bind(mcpConn, conn, s, onClose)
 		preempter.conn = conn
 		return jsonrpc2.HandlerFunc(h.handle)
 	}
