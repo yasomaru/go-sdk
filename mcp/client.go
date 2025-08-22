@@ -6,12 +6,14 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2"
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
@@ -56,6 +58,9 @@ type ClientOptions struct {
 	// Handler for sampling.
 	// Called when a server calls CreateMessage.
 	CreateMessageHandler func(context.Context, *CreateMessageRequest) (*CreateMessageResult, error)
+	// Handler for elicitation.
+	// Called when a server requests user input via Elicit.
+	ElicitationHandler func(context.Context, *ElicitRequest) (*ElicitResult, error)
 	// Handlers for notifications from the server.
 	ToolListChangedHandler      func(context.Context, *ToolListChangedRequest)
 	PromptListChangedHandler    func(context.Context, *PromptListChangedRequest)
@@ -110,6 +115,9 @@ func (c *Client) capabilities() *ClientCapabilities {
 	caps.Roots.ListChanged = true
 	if c.opts.CreateMessageHandler != nil {
 		caps.Sampling = &SamplingCapabilities{}
+	}
+	if c.opts.ElicitationHandler != nil {
+		caps.Elicitation = &ElicitationCapabilities{}
 	}
 	return caps
 }
@@ -268,6 +276,168 @@ func (c *Client) createMessage(ctx context.Context, req *CreateMessageRequest) (
 	return c.opts.CreateMessageHandler(ctx, req)
 }
 
+func (c *Client) elicit(ctx context.Context, req *ElicitRequest) (*ElicitResult, error) {
+	if c.opts.ElicitationHandler == nil {
+		// TODO: wrap or annotate this error? Pick a standard code?
+		return nil, jsonrpc2.NewError(CodeUnsupportedMethod, "client does not support elicitation")
+	}
+
+	// Validate that the requested schema only contains top-level properties without nesting
+	if err := validateElicitSchema(req.Params.RequestedSchema); err != nil {
+		return nil, jsonrpc2.NewError(CodeInvalidParams, err.Error())
+	}
+
+	res, err := c.opts.ElicitationHandler(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate elicitation result content against requested schema
+	if req.Params.RequestedSchema != nil && res.Content != nil {
+		resolved, err := req.Params.RequestedSchema.Resolve(nil)
+		if err != nil {
+			return nil, jsonrpc2.NewError(CodeInvalidParams, fmt.Sprintf("failed to resolve requested schema: %v", err))
+		}
+
+		if err := resolved.Validate(res.Content); err != nil {
+			return nil, jsonrpc2.NewError(CodeInvalidParams, fmt.Sprintf("elicitation result content does not match requested schema: %v", err))
+		}
+	}
+
+	return res, nil
+}
+
+// validateElicitSchema validates that the schema conforms to MCP elicitation schema requirements.
+// Per the MCP specification, elicitation schemas are limited to flat objects with primitive properties only.
+func validateElicitSchema(schema *jsonschema.Schema) error {
+	if schema == nil {
+		return nil // nil schema is allowed
+	}
+
+	// The root schema must be of type "object" if specified
+	if schema.Type != "" && schema.Type != "object" {
+		return fmt.Errorf("elicit schema must be of type 'object', got %q", schema.Type)
+	}
+
+	// Check if the schema has properties
+	if schema.Properties != nil {
+		for propName, propSchema := range schema.Properties {
+			if propSchema == nil {
+				continue
+			}
+
+			if err := validateElicitProperty(propName, propSchema); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateElicitProperty validates a single property in an elicitation schema.
+func validateElicitProperty(propName string, propSchema *jsonschema.Schema) error {
+	// Check if this property has nested properties (not allowed)
+	if len(propSchema.Properties) > 0 {
+		return fmt.Errorf("elicit schema property %q contains nested properties, only primitive properties are allowed", propName)
+	}
+
+	// Validate based on the property type - only primitives are supported
+	switch propSchema.Type {
+	case "string":
+		return validateElicitStringProperty(propName, propSchema)
+	case "number", "integer":
+		return validateElicitNumberProperty(propName, propSchema)
+	case "boolean":
+		return validateElicitBooleanProperty(propName, propSchema)
+	default:
+		return fmt.Errorf("elicit schema property %q has unsupported type %q, only string, number, integer, and boolean are allowed", propName, propSchema.Type)
+	}
+}
+
+// validateElicitStringProperty validates string-type properties, including enums.
+func validateElicitStringProperty(propName string, propSchema *jsonschema.Schema) error {
+	// Handle enum validation (enums are a special case of strings)
+	if len(propSchema.Enum) > 0 {
+		// Enums must be string type (or untyped which defaults to string)
+		if propSchema.Type != "" && propSchema.Type != "string" {
+			return fmt.Errorf("elicit schema property %q has enum values but type is %q, enums are only supported for string type", propName, propSchema.Type)
+		}
+		// Enum values themselves are validated by the JSON schema library
+		// Validate enumNames if present - must match enum length
+		if propSchema.Extra != nil {
+			if enumNamesRaw, exists := propSchema.Extra["enumNames"]; exists {
+				// Type check enumNames - should be a slice
+				if enumNamesSlice, ok := enumNamesRaw.([]interface{}); ok {
+					if len(enumNamesSlice) != len(propSchema.Enum) {
+						return fmt.Errorf("elicit schema property %q has %d enum values but %d enumNames, they must match", propName, len(propSchema.Enum), len(enumNamesSlice))
+					}
+				} else {
+					return fmt.Errorf("elicit schema property %q has invalid enumNames type, must be an array", propName)
+				}
+			}
+		}
+		return nil
+	}
+
+	// Validate format if specified - only specific formats are allowed
+	if propSchema.Format != "" {
+		allowedFormats := map[string]bool{
+			"email":     true,
+			"uri":       true,
+			"date":      true,
+			"date-time": true,
+		}
+		if !allowedFormats[propSchema.Format] {
+			return fmt.Errorf("elicit schema property %q has unsupported format %q, only email, uri, date, and date-time are allowed", propName, propSchema.Format)
+		}
+	}
+
+	// Validate minLength constraint if specified
+	if propSchema.MinLength != nil {
+		if *propSchema.MinLength < 0 {
+			return fmt.Errorf("elicit schema property %q has invalid minLength %d, must be non-negative", propName, *propSchema.MinLength)
+		}
+	}
+
+	// Validate maxLength constraint if specified
+	if propSchema.MaxLength != nil {
+		if *propSchema.MaxLength < 0 {
+			return fmt.Errorf("elicit schema property %q has invalid maxLength %d, must be non-negative", propName, *propSchema.MaxLength)
+		}
+		// Check that maxLength >= minLength if both are specified
+		if propSchema.MinLength != nil && *propSchema.MaxLength < *propSchema.MinLength {
+			return fmt.Errorf("elicit schema property %q has maxLength %d less than minLength %d", propName, *propSchema.MaxLength, *propSchema.MinLength)
+		}
+	}
+
+	return nil
+}
+
+// validateElicitNumberProperty validates number and integer-type properties.
+func validateElicitNumberProperty(propName string, propSchema *jsonschema.Schema) error {
+	if propSchema.Minimum != nil && propSchema.Maximum != nil {
+		if *propSchema.Maximum < *propSchema.Minimum {
+			return fmt.Errorf("elicit schema property %q has maximum %g less than minimum %g", propName, *propSchema.Maximum, *propSchema.Minimum)
+		}
+	}
+
+	return nil
+}
+
+// validateElicitBooleanProperty validates boolean-type properties.
+func validateElicitBooleanProperty(propName string, propSchema *jsonschema.Schema) error {
+	// Validate default value if specified - must be a valid boolean
+	if propSchema.Default != nil {
+		var defaultValue bool
+		if err := json.Unmarshal(propSchema.Default, &defaultValue); err != nil {
+			return fmt.Errorf("elicit schema property %q has invalid default value, must be a boolean: %v", propName, err)
+		}
+	}
+
+	return nil
+}
+
 // AddSendingMiddleware wraps the current sending method handler using the provided
 // middleware. Middleware is applied from right to left, so that the first one is
 // executed first.
@@ -308,6 +478,7 @@ var clientMethodInfos = map[string]methodInfo{
 	methodPing:                      newClientMethodInfo(clientSessionMethod((*ClientSession).ping), missingParamsOK),
 	methodListRoots:                 newClientMethodInfo(clientMethod((*Client).listRoots), missingParamsOK),
 	methodCreateMessage:             newClientMethodInfo(clientMethod((*Client).createMessage), 0),
+	methodElicit:                    newClientMethodInfo(clientMethod((*Client).elicit), missingParamsOK),
 	notificationCancelled:           newClientMethodInfo(clientSessionMethod((*ClientSession).cancel), notification|missingParamsOK),
 	notificationToolListChanged:     newClientMethodInfo(clientMethod((*Client).callToolChangedHandler), notification|missingParamsOK),
 	notificationPromptListChanged:   newClientMethodInfo(clientMethod((*Client).callPromptChangedHandler), notification|missingParamsOK),

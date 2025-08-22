@@ -7,6 +7,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -131,6 +132,15 @@ func TestEndToEnd(t *testing.T) {
 	opts := &ClientOptions{
 		CreateMessageHandler: func(context.Context, *CreateMessageRequest) (*CreateMessageResult, error) {
 			return &CreateMessageResult{Model: "aModel", Content: &TextContent{}}, nil
+		},
+		ElicitationHandler: func(ctx context.Context, req *ElicitRequest) (*ElicitResult, error) {
+			return &ElicitResult{
+				Action: "accept",
+				Content: map[string]any{
+					"name":  "Test User",
+					"email": "test@example.com",
+				},
+			}, nil
 		},
 		ToolListChangedHandler: func(context.Context, *ToolListChangedRequest) {
 			notificationChans["tools"] <- 0
@@ -472,6 +482,19 @@ func TestEndToEnd(t *testing.T) {
 			t.Fatalf("resource updated after unsubscription")
 		case <-time.After(time.Second):
 		}
+	})
+
+	t.Run("elicitation", func(t *testing.T) {
+		result, err := ss.Elicit(ctx, &ElicitParams{
+			Message: "Please provide information",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Action != "accept" {
+			t.Errorf("got action %q, want %q", result.Action, "accept")
+		}
+
 	})
 
 	// Disconnect.
@@ -906,6 +929,518 @@ func TestKeepAlive(t *testing.T) {
 	}
 }
 
+func TestElicitationUnsupportedMethod(t *testing.T) {
+	ctx := context.Background()
+	ct, st := NewInMemoryTransports()
+
+	// Server
+	s := NewServer(testImpl, nil)
+	ss, err := s.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+
+	// Client without ElicitationHandler
+	c := NewClient(testImpl, &ClientOptions{
+		CreateMessageHandler: func(context.Context, *CreateMessageRequest) (*CreateMessageResult, error) {
+			return &CreateMessageResult{Model: "aModel", Content: &TextContent{}}, nil
+		},
+	})
+	cs, err := c.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+
+	// Test that elicitation fails when no handler is provided
+	_, err = ss.Elicit(ctx, &ElicitParams{
+		Message: "This should fail",
+		RequestedSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"test": {Type: "string"},
+			},
+		},
+	})
+
+	if err == nil {
+		t.Error("expected error when ElicitationHandler is not provided, got nil")
+	}
+	if code := errorCode(err); code != CodeUnsupportedMethod {
+		t.Errorf("got error code %d, want %d (CodeUnsupportedMethod)", code, CodeUnsupportedMethod)
+	}
+	if !strings.Contains(err.Error(), "does not support elicitation") {
+		t.Errorf("error should mention unsupported elicitation, got: %v", err)
+	}
+}
+
+func TestElicitationSchemaValidation(t *testing.T) {
+	ctx := context.Background()
+	ct, st := NewInMemoryTransports()
+
+	s := NewServer(testImpl, nil)
+	ss, err := s.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+
+	c := NewClient(testImpl, &ClientOptions{
+		ElicitationHandler: func(context.Context, *ElicitRequest) (*ElicitResult, error) {
+			return &ElicitResult{Action: "accept", Content: map[string]any{"test": "value"}}, nil
+		},
+	})
+	cs, err := c.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+
+	// Test valid schemas - these should not return errors
+	validSchemas := []struct {
+		name   string
+		schema *jsonschema.Schema
+	}{
+		{
+			name:   "nil schema",
+			schema: nil,
+		},
+		{
+			name: "empty object schema",
+			schema: &jsonschema.Schema{
+				Type: "object",
+			},
+		},
+		{
+			name: "simple string property",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {Type: "string"},
+				},
+			},
+		},
+		{
+			name: "string with valid formats",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"email":    {Type: "string", Format: "email"},
+					"website":  {Type: "string", Format: "uri"},
+					"birthday": {Type: "string", Format: "date"},
+					"created":  {Type: "string", Format: "date-time"},
+				},
+			},
+		},
+		{
+			name: "string with constraints",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {Type: "string", MinLength: ptr(1), MaxLength: ptr(100)},
+				},
+			},
+		},
+		{
+			name: "number with constraints",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"age":   {Type: "integer", Minimum: ptr(0.0), Maximum: ptr(150.0)},
+					"score": {Type: "number", Minimum: ptr(0.0), Maximum: ptr(100.0)},
+				},
+			},
+		},
+		{
+			name: "boolean with default",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"enabled": {Type: "boolean", Default: json.RawMessage("true")},
+				},
+			},
+		},
+		{
+			name: "string enum",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"status": {
+						Type: "string",
+						Enum: []any{
+							"active",
+							"inactive",
+							"pending",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "enum with matching enumNames",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"priority": {
+						Type: "string",
+						Enum: []any{
+							"high",
+							"medium",
+							"low",
+						},
+						Extra: map[string]any{
+							"enumNames": []interface{}{"High Priority", "Medium Priority", "Low Priority"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range validSchemas {
+		t.Run("valid_"+tc.name, func(t *testing.T) {
+			_, err := ss.Elicit(ctx, &ElicitParams{
+				Message:         "Test valid schema: " + tc.name,
+				RequestedSchema: tc.schema,
+			})
+			if err != nil {
+				t.Errorf("expected no error for valid schema %q, got: %v", tc.name, err)
+			}
+		})
+	}
+
+	// Test invalid schemas - these should return errors
+	invalidSchemas := []struct {
+		name          string
+		schema        *jsonschema.Schema
+		expectedError string
+	}{
+		{
+			name: "root schema non-object type",
+			schema: &jsonschema.Schema{
+				Type: "string",
+			},
+			expectedError: "elicit schema must be of type 'object', got \"string\"",
+		},
+		{
+			name: "nested object property",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"user": {
+						Type: "object",
+						Properties: map[string]*jsonschema.Schema{
+							"name": {Type: "string"},
+						},
+					},
+				},
+			},
+			expectedError: "elicit schema property \"user\" contains nested properties, only primitive properties are allowed",
+		},
+		{
+			name: "property with explicit object type",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"config": {Type: "object"},
+				},
+			},
+			expectedError: "elicit schema property \"config\" has unsupported type \"object\", only string, number, integer, and boolean are allowed",
+		},
+		{
+			name: "array property",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"tags": {Type: "array", Items: &jsonschema.Schema{Type: "string"}},
+				},
+			},
+			expectedError: "elicit schema property \"tags\" has unsupported type \"array\", only string, number, integer, and boolean are allowed",
+		},
+		{
+			name: "array without items",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"items": {Type: "array"},
+				},
+			},
+			expectedError: "elicit schema property \"items\" has unsupported type \"array\", only string, number, integer, and boolean are allowed",
+		},
+		{
+			name: "unsupported string format",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"phone": {Type: "string", Format: "phone"},
+				},
+			},
+			expectedError: "elicit schema property \"phone\" has unsupported format \"phone\", only email, uri, date, and date-time are allowed",
+		},
+		{
+			name: "unsupported type",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"data": {Type: "null"},
+				},
+			},
+			expectedError: "elicit schema property \"data\" has unsupported type \"null\"",
+		},
+		{
+			name: "string with invalid minLength",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {Type: "string", MinLength: ptr(-1)},
+				},
+			},
+			expectedError: "elicit schema property \"name\" has invalid minLength -1, must be non-negative",
+		},
+		{
+			name: "string with invalid maxLength",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {Type: "string", MaxLength: ptr(-5)},
+				},
+			},
+			expectedError: "elicit schema property \"name\" has invalid maxLength -5, must be non-negative",
+		},
+		{
+			name: "string with maxLength less than minLength",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"name": {Type: "string", MinLength: ptr(10), MaxLength: ptr(5)},
+				},
+			},
+			expectedError: "elicit schema property \"name\" has maxLength 5 less than minLength 10",
+		},
+		{
+			name: "number with maximum less than minimum",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"score": {Type: "number", Minimum: ptr(100.0), Maximum: ptr(50.0)},
+				},
+			},
+			expectedError: "elicit schema property \"score\" has maximum 50 less than minimum 100",
+		},
+		{
+			name: "boolean with invalid default",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"enabled": {Type: "boolean", Default: json.RawMessage(`"not-a-boolean"`)},
+				},
+			},
+			expectedError: "elicit schema property \"enabled\" has invalid default value, must be a boolean",
+		},
+		{
+			name: "enum with mismatched enumNames length",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"priority": {
+						Type: "string",
+						Enum: []any{
+							"high",
+							"medium",
+							"low",
+						},
+						Extra: map[string]any{
+							"enumNames": []interface{}{"High Priority", "Medium Priority"}, // Only 2 names for 3 values
+						},
+					},
+				},
+			},
+			expectedError: "elicit schema property \"priority\" has 3 enum values but 2 enumNames, they must match",
+		},
+		{
+			name: "enum with invalid enumNames type",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"status": {
+						Type: "string",
+						Enum: []any{
+							"active",
+							"inactive",
+						},
+						Extra: map[string]any{
+							"enumNames": "not an array", // Should be array
+						},
+					},
+				},
+			},
+			expectedError: "elicit schema property \"status\" has invalid enumNames type, must be an array",
+		},
+		{
+			name: "enum without explicit type",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"priority": {
+						Enum: []any{
+							"high",
+							"medium",
+							"low",
+						},
+					},
+				},
+			},
+			expectedError: "elicit schema property \"priority\" has unsupported type \"\", only string, number, integer, and boolean are allowed",
+		},
+		{
+			name: "untyped property",
+			schema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"data": {},
+				},
+			},
+			expectedError: "elicit schema property \"data\" has unsupported type \"\", only string, number, integer, and boolean are allowed",
+		},
+	}
+
+	for _, tc := range invalidSchemas {
+		t.Run("invalid_"+tc.name, func(t *testing.T) {
+			_, err := ss.Elicit(ctx, &ElicitParams{
+				Message:         "Test invalid schema: " + tc.name,
+				RequestedSchema: tc.schema,
+			})
+			if err == nil {
+				t.Errorf("expected error for invalid schema %q, got nil", tc.name)
+				return
+			}
+			if code := errorCode(err); code != CodeInvalidParams {
+				t.Errorf("got error code %d, want %d (CodeInvalidParams)", code, CodeInvalidParams)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("error message %q does not contain expected text %q", err.Error(), tc.expectedError)
+			}
+		})
+	}
+}
+
+func TestElicitationProgressToken(t *testing.T) {
+	ctx := context.Background()
+	ct, st := NewInMemoryTransports()
+
+	s := NewServer(testImpl, nil)
+	ss, err := s.Connect(ctx, st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ss.Close()
+
+	c := NewClient(testImpl, &ClientOptions{
+		ElicitationHandler: func(context.Context, *ElicitRequest) (*ElicitResult, error) {
+			return &ElicitResult{Action: "accept"}, nil
+		},
+	})
+	cs, err := c.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cs.Close()
+
+	params := &ElicitParams{
+		Message: "Test progress token",
+		Meta:    Meta{},
+	}
+	params.SetProgressToken("test-token")
+
+	if token := params.GetProgressToken(); token != "test-token" {
+		t.Errorf("got progress token %v, want %q", token, "test-token")
+	}
+
+	_, err = ss.Elicit(ctx, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestElicitationCapabilityDeclaration(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("with_handler", func(t *testing.T) {
+		ct, st := NewInMemoryTransports()
+
+		// Client with ElicitationHandler should declare capability
+		c := NewClient(testImpl, &ClientOptions{
+			ElicitationHandler: func(context.Context, *ElicitRequest) (*ElicitResult, error) {
+				return &ElicitResult{Action: "cancel"}, nil
+			},
+		})
+
+		s := NewServer(testImpl, nil)
+		ss, err := s.Connect(ctx, st, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ss.Close()
+
+		cs, err := c.Connect(ctx, ct, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cs.Close()
+
+		// The client should have declared elicitation capability during initialization
+		// We can verify this worked by successfully making an elicitation call
+		result, err := ss.Elicit(ctx, &ElicitParams{
+			Message:         "Test capability",
+			RequestedSchema: &jsonschema.Schema{Type: "object"},
+		})
+		if err != nil {
+			t.Errorf("elicitation should work when capability is declared, got error: %v", err)
+		}
+		if result.Action != "cancel" {
+			t.Errorf("got action %q, want %q", result.Action, "cancel")
+		}
+	})
+
+	t.Run("without_handler", func(t *testing.T) {
+		ct, st := NewInMemoryTransports()
+
+		// Client without ElicitationHandler should not declare capability
+		c := NewClient(testImpl, &ClientOptions{
+			CreateMessageHandler: func(context.Context, *CreateMessageRequest) (*CreateMessageResult, error) {
+				return &CreateMessageResult{Model: "aModel", Content: &TextContent{}}, nil
+			},
+		})
+
+		s := NewServer(testImpl, nil)
+		ss, err := s.Connect(ctx, st, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ss.Close()
+
+		cs, err := c.Connect(ctx, ct, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cs.Close()
+
+		// Elicitation should fail with UnsupportedMethod
+		_, err = ss.Elicit(ctx, &ElicitParams{
+			Message:         "This should fail",
+			RequestedSchema: &jsonschema.Schema{Type: "object"},
+		})
+
+		if err == nil {
+			t.Error("expected UnsupportedMethod error when no capability declared")
+		}
+		if code := errorCode(err); code != CodeUnsupportedMethod {
+			t.Errorf("got error code %d, want %d (CodeUnsupportedMethod)", code, CodeUnsupportedMethod)
+		}
+	})
+}
+
 func TestKeepAliveFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1184,4 +1719,9 @@ func TestPointerArgEquivalence(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ptr is a helper function to create pointers for schema constraints
+func ptr[T any](v T) *T {
+	return &v
 }
