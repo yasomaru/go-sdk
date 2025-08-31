@@ -195,29 +195,21 @@ func jwtVerifier(ctx context.Context, tokenString string) (*auth.TokenInfo, erro
 
 ```go
 // Get authentication information in MCP tool
-func MyTool(ctx context.Context, req *mcp.ServerRequest[*mcp.CallToolParamsFor[MyArgs]]) (*mcp.CallToolResultFor[struct{}], error) {
-    // Extract authentication info from context
-    userInfo := ctx.Value("user_info").(*auth.TokenInfo)
+func MyTool(ctx context.Context, req *mcp.CallToolRequest, args MyArgs) (*mcp.CallToolResult, any, error) {
+    // Extract authentication info from request 
+    userInfo := req.Extra.TokenInfo
     
     // Check scopes
-    hasReadScope := false
-    for _, scope := range userInfo.Scopes {
-        if scope == "read" {
-            hasReadScope = true
-            break
-        }
-    }
-    
-    if !hasReadScope {
-        return nil, fmt.Errorf("insufficient permissions: read scope required")
+    if !slices.Contains(userInfo.Scopes, "read") {
+        return nil, nil, fmt.Errorf("insufficient permissions: read scope required")
     }
     
     // Execute tool logic
-    return &mcp.CallToolResultFor[struct{}]{
+    return &mcp.CallToolResult{
         Content: []mcp.Content{
             &mcp.TextContent{Text: "Tool executed successfully"},
         },
-    }, nil
+    }, nil, nil
 }
 ```
 

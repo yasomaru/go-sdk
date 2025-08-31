@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,7 +65,7 @@ var jwtSecret = []byte("your-secret-key")
 // generateToken creates a JWT token for testing purposes.
 // In a real application, this would be handled by your authentication service.
 func generateToken(userID string, scopes []string, expiresIn time.Duration) (string, error) {
-	// Create JWT claims with user information and scopes
+	// Create JWT claims with user information and scopes.
 	claims := JWTClaims{
 		UserID: userID,
 		Scopes: scopes,
@@ -75,17 +76,17 @@ func generateToken(userID string, scopes []string, expiresIn time.Duration) (str
 		},
 	}
 
-	// Create and sign the JWT token
+	// Create and sign the JWT token.
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
 }
 
-// jwtVerifier verifies JWT tokens and returns TokenInfo for the auth middleware.
+// verifyJWT verifies JWT tokens and returns TokenInfo for the auth middleware.
 // This function implements the TokenVerifier interface required by auth.RequireBearerToken.
-func jwtVerifier(ctx context.Context, tokenString string) (*auth.TokenInfo, error) {
-	// Parse and validate the JWT token
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verify the signing method is HMAC
+func verifyJWT(ctx context.Context, tokenString string) (*auth.TokenInfo, error) {
+	// Parse and validate the JWT token.
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (any, error) {
+		// Verify the signing method is HMAC.
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -93,11 +94,11 @@ func jwtVerifier(ctx context.Context, tokenString string) (*auth.TokenInfo, erro
 	})
 
 	if err != nil {
-		// Return standard error for invalid tokens
-		return nil, auth.ErrInvalidToken
+		// Return standard error for invalid tokens.
+		return nil, fmt.Errorf("%w: %v", auth.ErrInvalidToken, err)
 	}
 
-	// Extract claims and verify token validity
+	// Extract claims and verify token validity.
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
 		return &auth.TokenInfo{
 			Scopes:     claims.Scopes,         // User permissions
@@ -105,20 +106,20 @@ func jwtVerifier(ctx context.Context, tokenString string) (*auth.TokenInfo, erro
 		}, nil
 	}
 
-	return nil, auth.ErrInvalidToken
+	return nil, fmt.Errorf("%w: invalid token claims", auth.ErrInvalidToken)
 }
 
-// apiKeyVerifier verifies API keys and returns TokenInfo for the auth middleware.
+// verifyAPIKey verifies API keys and returns TokenInfo for the auth middleware.
 // This function implements the TokenVerifier interface required by auth.RequireBearerToken.
-func apiKeyVerifier(ctx context.Context, apiKey string) (*auth.TokenInfo, error) {
-	// Look up the API key in our storage
+func verifyAPIKey(ctx context.Context, apiKey string) (*auth.TokenInfo, error) {
+	// Look up the API key in our storage.
 	key, exists := apiKeys[apiKey]
 	if !exists {
-		return nil, auth.ErrInvalidToken
+		return nil, fmt.Errorf("%w: API key not found", auth.ErrInvalidToken)
 	}
 
-	// API keys don't expire in this example, but you could add expiration logic here
-	// For demonstration, we set a 24-hour expiration
+	// API keys don't expire in this example, but you could add expiration logic here.
+	// For demonstration, we set a 24-hour expiration.
 	return &auth.TokenInfo{
 		Scopes:     key.Scopes,                     // User permissions
 		Expiration: time.Now().Add(24 * time.Hour), // 24 hour expiration
@@ -126,11 +127,11 @@ func apiKeyVerifier(ctx context.Context, apiKey string) (*auth.TokenInfo, error)
 }
 
 // MCP Tool Arguments
-type GetUserInfoArgs struct {
+type getUserInfoArgs struct {
 	UserID string `json:"user_id" jsonschema:"the user ID to get information for"`
 }
 
-type CreateResourceArgs struct {
+type createResourceArgs struct {
 	Name        string `json:"name" jsonschema:"the name of the resource"`
 	Description string `json:"description" jsonschema:"the description of the resource"`
 	Content     string `json:"content" jsonschema:"the content of the resource"`
@@ -138,8 +139,8 @@ type CreateResourceArgs struct {
 
 // SayHi is a simple MCP tool that requires authentication
 func SayHi(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
-	// Extract user information from context (set by auth middleware)
-	userInfo := ctx.Value("user_info").(*auth.TokenInfo)
+	// Extract user information from request (v0.3.0+)
+	userInfo := req.Extra.TokenInfo
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -149,30 +150,25 @@ func SayHi(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.C
 }
 
 // GetUserInfo is an MCP tool that requires read scope
-func GetUserInfo(ctx context.Context, req *mcp.CallToolRequest, args GetUserInfoArgs) (*mcp.CallToolResult, any, error) {
-	// Extract user information from context (set by auth middleware)
-	userInfo := ctx.Value("user_info").(*auth.TokenInfo)
+func GetUserInfo(ctx context.Context, req *mcp.CallToolRequest, args getUserInfoArgs) (*mcp.CallToolResult, any, error) {
+	// Extract user information from request (v0.3.0+)
+	userInfo := req.Extra.TokenInfo
 
-	// Check if user has read scope
-	hasReadScope := false
-	for _, scope := range userInfo.Scopes {
-		if scope == "read" {
-			hasReadScope = true
-			break
-		}
-	}
-
-	if !hasReadScope {
+	// Check if user has read scope.
+	if !slices.Contains(userInfo.Scopes, "read") {
 		return nil, nil, fmt.Errorf("insufficient permissions: read scope required")
 	}
 
-	userData := map[string]interface{}{
+	userData := map[string]any{
 		"requested_user_id": args.UserID,
 		"your_scopes":       userInfo.Scopes,
 		"message":           "User information retrieved successfully",
 	}
 
-	userDataJSON, _ := json.Marshal(userData)
+	userDataJSON, err := json.Marshal(userData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal user data: %w", err)
+	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -182,24 +178,16 @@ func GetUserInfo(ctx context.Context, req *mcp.CallToolRequest, args GetUserInfo
 }
 
 // CreateResource is an MCP tool that requires write scope
-func CreateResource(ctx context.Context, req *mcp.CallToolRequest, args CreateResourceArgs) (*mcp.CallToolResult, any, error) {
-	// Extract user information from context (set by auth middleware)
-	userInfo := ctx.Value("user_info").(*auth.TokenInfo)
+func CreateResource(ctx context.Context, req *mcp.CallToolRequest, args createResourceArgs) (*mcp.CallToolResult, any, error) {
+	// Extract user information from request (v0.3.0+)
+	userInfo := req.Extra.TokenInfo
 
-	// Check if user has write scope
-	hasWriteScope := false
-	for _, scope := range userInfo.Scopes {
-		if scope == "write" {
-			hasWriteScope = true
-			break
-		}
-	}
-
-	if !hasWriteScope {
+	// Check if user has write scope.
+	if !slices.Contains(userInfo.Scopes, "write") {
 		return nil, nil, fmt.Errorf("insufficient permissions: write scope required")
 	}
 
-	resourceInfo := map[string]interface{}{
+	resourceInfo := map[string]any{
 		"name":        args.Name,
 		"description": args.Description,
 		"content":     args.Content,
@@ -207,7 +195,10 @@ func CreateResource(ctx context.Context, req *mcp.CallToolRequest, args CreateRe
 		"created_at":  time.Now().Format(time.RFC3339),
 	}
 
-	resourceInfoJSON, _ := json.Marshal(resourceInfo)
+	resourceInfoJSON, err := json.Marshal(resourceInfo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal resource info: %w", err)
+	}
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -233,7 +224,7 @@ func authMiddleware(next http.Handler) http.Handler {
 func createMCPServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "authenticated-mcp-server"}, nil)
 
-	// Add tools that require authentication
+	// Add tools that require authentication.
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "say_hi",
 		Description: "A simple greeting tool that requires authentication",
@@ -255,46 +246,46 @@ func createMCPServer() *mcp.Server {
 func main() {
 	flag.Parse()
 
-	// Create the MCP server
+	// Create the MCP server.
 	server := createMCPServer()
 
-	// Create authentication middleware
-	jwtAuth := auth.RequireBearerToken(jwtVerifier, &auth.RequireBearerTokenOptions{
+	// Create authentication middleware.
+	jwtAuth := auth.RequireBearerToken(verifyJWT, &auth.RequireBearerTokenOptions{
 		Scopes: []string{"read"}, // Require "read" permission
 	})
 
-	apiKeyAuth := auth.RequireBearerToken(apiKeyVerifier, &auth.RequireBearerTokenOptions{
+	apiKeyAuth := auth.RequireBearerToken(verifyAPIKey, &auth.RequireBearerTokenOptions{
 		Scopes: []string{"read"}, // Require "read" permission
 	})
 
-	// Create HTTP handler with authentication
+	// Create HTTP handler with authentication.
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return server
 	}, nil)
 
-	// Apply authentication middleware to the MCP handler
+	// Apply authentication middleware to the MCP handler.
 	authenticatedHandler := jwtAuth(authMiddleware(handler))
 	apiKeyHandler := apiKeyAuth(authMiddleware(handler))
 
-	// Create router for different authentication methods
+	// Create router for different authentication methods.
 	http.HandleFunc("/mcp/jwt", authenticatedHandler.ServeHTTP)
 	http.HandleFunc("/mcp/apikey", apiKeyHandler.ServeHTTP)
 
-	// Add utility endpoints for token generation
+	// Add utility endpoints for token generation.
 	http.HandleFunc("/generate-token", func(w http.ResponseWriter, r *http.Request) {
-		// Get user ID from query parameters (default: "test-user")
+		// Get user ID from query parameters (default: "test-user").
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
 			userID = "test-user"
 		}
 
-		// Get scopes from query parameters (default: ["read", "write"])
+		// Get scopes from query parameters (default: ["read", "write"]).
 		scopes := strings.Split(r.URL.Query().Get("scopes"), ",")
 		if len(scopes) == 1 && scopes[0] == "" {
 			scopes = []string{"read", "write"}
 		}
 
-		// Get expiration time from query parameters (default: 1 hour)
+		// Get expiration time from query parameters (default: 1 hour).
 		expiresIn := 1 * time.Hour
 		if expStr := r.URL.Query().Get("expires_in"); expStr != "" {
 			if exp, err := time.ParseDuration(expStr); err == nil {
@@ -302,14 +293,14 @@ func main() {
 			}
 		}
 
-		// Generate the JWT token
+		// Generate the JWT token.
 		token, err := generateToken(userID, scopes, expiresIn)
 		if err != nil {
 			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 			return
 		}
 
-		// Return the generated token
+		// Return the generated token.
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"token": token,
@@ -318,32 +309,35 @@ func main() {
 	})
 
 	http.HandleFunc("/generate-api-key", func(w http.ResponseWriter, r *http.Request) {
-		// Generate a random API key using cryptographically secure random bytes
+		// Generate a random API key using cryptographically secure random bytes.
 		bytes := make([]byte, 16)
-		rand.Read(bytes)
+		if _, err := rand.Read(bytes); err != nil {
+			http.Error(w, "Failed to generate random bytes", http.StatusInternalServerError)
+			return
+		}
 		apiKey := "sk-" + base64.URLEncoding.EncodeToString(bytes)
 
-		// Get user ID from query parameters (default: "test-user")
+		// Get user ID from query parameters (default: "test-user").
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
 			userID = "test-user"
 		}
 
-		// Get scopes from query parameters (default: ["read"])
+		// Get scopes from query parameters (default: ["read"]).
 		scopes := strings.Split(r.URL.Query().Get("scopes"), ",")
 		if len(scopes) == 1 && scopes[0] == "" {
 			scopes = []string{"read"}
 		}
 
-		// Store the new API key in our in-memory storage
-		// In production, this would be stored in a database
+		// Store the new API key in our in-memory storage.
+		// In production, this would be stored in a database.
 		apiKeys[apiKey] = &APIKey{
 			Key:    apiKey,
 			UserID: userID,
 			Scopes: scopes,
 		}
 
-		// Return the generated API key
+		// Return the generated API key.
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"api_key": apiKey,
@@ -351,7 +345,7 @@ func main() {
 		})
 	})
 
-	// Health check endpoint
+	// Health check endpoint.
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
@@ -360,7 +354,7 @@ func main() {
 		})
 	})
 
-	// Start the HTTP server
+	// Start the HTTP server.
 	log.Println("Authenticated MCP Server")
 	log.Println("========================")
 	log.Println("Server starting on", *httpAddr)
