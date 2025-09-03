@@ -247,8 +247,12 @@ func toolForErr[In, Out any](t *Tool, h ToolHandlerFor[In, Out]) (*Tool, ToolHan
 			}, nil
 		}
 
-		// TODO(v0.3.0): Validate out.
-		_ = outputResolved
+		// Validate output schema, if any.
+		// Skip if out is nil: we've removed "null" from the output schema, so nil won't validate.
+		if v := reflect.ValueOf(out); v.Kind() == reflect.Pointer && v.IsNil() {
+		} else if err := validateSchema(outputResolved, &out); err != nil {
+			return nil, fmt.Errorf("tool output: %w", err)
+		}
 
 		if res == nil {
 			res = &CallToolResult{}
