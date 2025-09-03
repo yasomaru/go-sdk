@@ -24,8 +24,12 @@ type TokenInfo struct {
 // The error that a TokenVerifier should return if the token cannot be verified.
 var ErrInvalidToken = errors.New("invalid token")
 
+// The error that a TokenVerifier should return for OAuth-specific protocol errors.
+var ErrOAuth = errors.New("oauth error")
+
 // A TokenVerifier checks the validity of a bearer token, and extracts information
-// from it. If verification fails, it should return an error that unwraps to ErrInvalidToken.
+// from it. If verification fails, it should return an error that unwraps to ErrInvalidToken
+// or ErrOAuth depending on the nature of the error.
 type TokenVerifier func(ctx context.Context, token string) (*TokenInfo, error)
 
 // RequireBearerTokenOptions are options for [RequireBearerToken].
@@ -88,9 +92,9 @@ func verify(ctx context.Context, verifier TokenVerifier, opts *RequireBearerToke
 		if errors.Is(err, ErrInvalidToken) {
 			return nil, err.Error(), http.StatusUnauthorized
 		}
-		// TODO: the TS SDK distinguishes another error, OAuthError, and returns a 400.
-		// Investigate how that works.
-		// See typescript-sdk/src/server/auth/middleware/bearerAuth.ts.
+		if errors.Is(err, ErrOAuth) {
+			return nil, err.Error(), http.StatusBadRequest
+		}
 		return nil, err.Error(), http.StatusInternalServerError
 	}
 
